@@ -11,8 +11,8 @@ from app.models import User, UploadBatch, Image, PatientInfo
 from app.schemas import BatchResponse, BatchListResponse, PatientInfoResponse
 from app.auth import get_current_user, require_admin, require_batch_or_admin
 from app.config import UPLOAD_DIR
-from app.services.claude_inference import cancel_classification
-from app.services.image_preprocessor_for_LLM import preprocess_cassette, PreprocessingError
+from app.services.cv_inference import cancel_classification
+from app.services.image_preprocessor import preprocess_cassette, PreprocessingError
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 

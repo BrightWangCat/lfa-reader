@@ -27,8 +27,6 @@ def export_batch_csv(
     writer.writerow([
         "Image No.",
         "Original Filename",
-        "AI Reading",
-        "AI Confidence",
         "CV Reading",
         "CV Confidence",
         "Manual Correction",
@@ -42,13 +40,11 @@ def export_batch_csv(
     ])
 
     for idx, img in enumerate(images, start=1):
-        final = img.manual_correction or img.reading_result or img.cv_result or "Unclassified"
+        final = img.manual_correction or img.cv_result or "Unclassified"
         pi = img.patient_info
         writer.writerow([
             idx,
             img.original_filename,
-            img.reading_result or "",
-            img.reading_confidence or "",
             img.cv_result or "",
             img.cv_confidence or "",
             img.manual_correction or "",
@@ -103,8 +99,6 @@ def export_batch_excel(
     headers = [
         "Image No.",
         "Original Filename",
-        "AI Reading",
-        "AI Confidence",
         "CV Reading",
         "CV Confidence",
         "Manual Correction",
@@ -124,13 +118,11 @@ def export_batch_excel(
         cell.border = thin_border
 
     for idx, img in enumerate(images, start=1):
-        final = img.manual_correction or img.reading_result or img.cv_result or "Unclassified"
+        final = img.manual_correction or img.cv_result or "Unclassified"
         pi = img.patient_info
         row_data = [
             idx,
             img.original_filename,
-            img.reading_result or "",
-            img.reading_confidence or "",
             img.cv_result or "",
             img.cv_confidence or "",
             img.manual_correction or "",
@@ -160,21 +152,21 @@ def export_batch_excel(
     ws2 = wb.create_sheet(title="Summary")
 
     total = len(images)
-    ai_count = sum(1 for img in images if img.reading_result)
+    cv_count = sum(1 for img in images if img.cv_result)
     corrected_count = sum(1 for img in images if img.manual_correction)
 
     # Distribution
     final_dist = {}
     for img in images:
-        final = img.manual_correction or img.reading_result or "Unclassified"
+        final = img.manual_correction or img.cv_result or "Unclassified"
         final_dist[final] = final_dist.get(final, 0) + 1
 
     summary_data = [
         ["Batch Name", batch.name or "Untitled"],
         ["Total Images", total],
-        ["AI Read", ai_count],
+        ["CV Read", cv_count],
         ["Manually Corrected", corrected_count],
-        ["Unclassified", total - max(ai_count, corrected_count, 0)],
+        ["Unclassified", total - max(cv_count, corrected_count, 0)],
         [],
         ["Category", "Count", "Percentage"],
     ]
@@ -198,11 +190,11 @@ def export_batch_excel(
     ws2.column_dimensions["C"].width = 15
 
     # --- Sheet 3: Comparison (if applicable) ---
-    both_images = [img for img in images if img.reading_result and img.manual_correction]
+    both_images = [img for img in images if img.cv_result and img.manual_correction]
     if both_images:
-        ws3 = wb.create_sheet(title="AI vs Manual")
+        ws3 = wb.create_sheet(title="CV vs Manual")
 
-        comp_headers = ["Image No.", "Filename", "AI Reading", "Manual Correction", "Match"]
+        comp_headers = ["Image No.", "Filename", "CV Reading", "Manual Correction", "Match"]
         for col, header in enumerate(comp_headers, start=1):
             cell = ws3.cell(row=1, column=col, value=header)
             cell.font = header_font
@@ -211,10 +203,10 @@ def export_batch_excel(
 
         match_count = 0
         for idx, img in enumerate(both_images, start=1):
-            match = "Yes" if img.reading_result == img.manual_correction else "No"
+            match = "Yes" if img.cv_result == img.manual_correction else "No"
             if match == "Yes":
                 match_count += 1
-            row_data = [idx, img.original_filename, img.reading_result, img.manual_correction, match]
+            row_data = [idx, img.original_filename, img.cv_result, img.manual_correction, match]
             for col, value in enumerate(row_data, start=1):
                 cell = ws3.cell(row=idx + 1, column=col, value=value)
                 cell.alignment = Alignment(horizontal="center")

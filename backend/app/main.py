@@ -1,12 +1,11 @@
 import os
-import warnings
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text, inspect as sa_inspect
 
 from app.database import engine, Base
-from app.config import UPLOAD_DIR, ANTHROPIC_API_KEY, CORS_ORIGINS
+from app.config import UPLOAD_DIR, CORS_ORIGINS
 from app.routers import users, upload, reading, stats, export
 
 Base.metadata.create_all(bind=engine)
@@ -61,11 +60,19 @@ def _migrate_images_cv_fields(eng):
 
 _migrate_images_cv_fields(engine)
 
-if not ANTHROPIC_API_KEY:
-    warnings.warn(
-        "ANTHROPIC_API_KEY is not set. AI classification will fail.",
-        stacklevel=1,
-    )
+
+# Drop deprecated LLM classification columns (reading_result, reading_confidence)
+# from images table. These are no longer used after removing the LLM classifier.
+def _migrate_drop_llm_fields(eng):
+    columns = [c["name"] for c in sa_inspect(eng).get_columns("images")]
+    with eng.begin() as conn:
+        if "reading_result" in columns:
+            conn.execute(text("ALTER TABLE images DROP COLUMN reading_result"))
+        if "reading_confidence" in columns:
+            conn.execute(text("ALTER TABLE images DROP COLUMN reading_confidence"))
+
+
+_migrate_drop_llm_fields(engine)
 
 app = FastAPI(title="FeLV/FIV LFA Reader", version="0.1.0")
 

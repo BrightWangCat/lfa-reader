@@ -28,7 +28,7 @@ import numpy as np
 from sqlalchemy.orm import Session
 
 from app.models import UploadBatch, Image
-from app.services.image_preprocessor_for_LLM import (
+from app.services.image_preprocessor import (
     _detect_cassette_contour,
     _straighten_and_crop,
     _correct_horizontal_direction,
@@ -367,7 +367,7 @@ def classify_batch(batch_id: int, db_factory) -> None:
             return
 
         batch.reading_status = "running"
-        batch.claude_model = "cv"
+        batch.classification_model = "cv"
         batch.reading_error = None
         db.commit()
 

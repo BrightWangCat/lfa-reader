@@ -94,7 +94,6 @@ export default function Stats() {
 
   const dist = stats.distribution.final || {};
   const coverage = stats.reading_coverage;
-  const aiComparison = stats.ai_comparison;
   const cvComparison = stats.cv_comparison;
 
   // Prepare distribution table data
@@ -267,22 +266,17 @@ export default function Stats() {
         Reading Coverage
       </Title>
       <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
-        <Col xs={12} sm={6} md={4}>
+        <Col xs={12} sm={6} md={6}>
           <Card>
             <Statistic title="Total Images" value={stats.total_images} />
           </Card>
         </Col>
-        <Col xs={12} sm={6} md={4}>
-          <Card>
-            <Statistic title="AI Read" value={coverage.ai_read} />
-          </Card>
-        </Col>
-        <Col xs={12} sm={6} md={4}>
+        <Col xs={12} sm={6} md={6}>
           <Card>
             <Statistic title="CV Read" value={coverage.cv_read} />
           </Card>
         </Col>
-        <Col xs={12} sm={6} md={4}>
+        <Col xs={12} sm={6} md={6}>
           <Card>
             <Statistic
               title="Manually Corrected"
@@ -290,7 +284,7 @@ export default function Stats() {
             />
           </Card>
         </Col>
-        <Col xs={12} sm={6} md={4}>
+        <Col xs={12} sm={6} md={6}>
           <Card>
             <Statistic title="Unclassified" value={coverage.unclassified} />
           </Card>
@@ -314,18 +308,6 @@ export default function Stats() {
           size="small"
           scroll={{ x: 400 }}
           style={{ marginBottom: 32 }}
-        />
-      )}
-
-      {/* AI vs Manual Comparison */}
-      {aiComparison && (
-        <ComparisonSection
-          title="AI vs Manual Comparison"
-          comparison={aiComparison}
-          methodLabel="AI"
-          accentColor="#2b6cb0"
-          metricsColumns={metricsColumns}
-          formatMetric={formatMetric}
         />
       )}
 

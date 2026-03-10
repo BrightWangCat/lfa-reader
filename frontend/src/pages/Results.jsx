@@ -21,7 +21,6 @@ import {
   EditOutlined,
   SaveOutlined,
   CloseOutlined,
-  RobotOutlined,
   CheckOutlined,
   DownloadOutlined,
   BarChartOutlined,
@@ -76,8 +75,6 @@ export default function Results() {
   const [classifyProgress, setClassifyProgress] = useState(0);
   const [classifyError, setClassifyError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("claude-sonnet-4-6");
-  const [activeMethod, setActiveMethod] = useState(null); // "cv" or "llm"
 
   // Per-image toggle: show original instead of preprocessed
   const [showOriginal, setShowOriginal] = useState({});
@@ -108,9 +105,6 @@ export default function Results() {
         setClassifyStatus(res.data.reading_status);
         setClassifyProgress(res.data.progress);
         setClassifyError(res.data.reading_error || "");
-        if (res.data.claude_model) {
-          setActiveMethod(res.data.claude_model === "cv" ? "cv" : "llm");
-        }
 
         if (res.data.reading_status === "completed") {
           clearInterval(interval);
@@ -150,7 +144,7 @@ export default function Results() {
   const startEdit = (image) => {
     setEditingId(image.id);
     setCorrectionValue(
-      image.manual_correction || image.reading_result || ""
+      image.manual_correction || image.cv_result || ""
     );
   };
 
@@ -187,35 +181,12 @@ export default function Results() {
     setSubmitting(true);
     setClassifyError("");
     try {
-      const res = await api.post(`/api/readings/batch/${batchId}/classify`, {
-        method: "cv",
-      });
+      const res = await api.post(`/api/readings/batch/${batchId}/classify`);
       setClassifyStatus(res.data.reading_status);
       setClassifyProgress(0);
-      setActiveMethod("cv");
     } catch (err) {
       setClassifyError(
         err.response?.data?.detail || "Failed to submit CV classification"
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleClassify = async () => {
-    setSubmitting(true);
-    setClassifyError("");
-    try {
-      const res = await api.post(`/api/readings/batch/${batchId}/classify`, {
-        method: "llm",
-        model: selectedModel,
-      });
-      setClassifyStatus(res.data.reading_status);
-      setClassifyProgress(0);
-      setActiveMethod("llm");
-    } catch (err) {
-      setClassifyError(
-        err.response?.data?.detail || "Failed to submit AI classification"
       );
     } finally {
       setSubmitting(false);
@@ -233,7 +204,7 @@ export default function Results() {
     }
   };
 
-  // 快捷批准：将 AI 或 CV 结果直接设为手动修正值
+  // Approve CV result as manual correction
   const approveResult = async (imageId, value) => {
     setSaving(true);
     try {
@@ -256,13 +227,6 @@ export default function Results() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const renderAiTag = (image) => {
-    if (image.reading_result) {
-      return <Tag color="blue">{image.reading_result}</Tag>;
-    }
-    return <Tag color="gold">Pending</Tag>;
   };
 
   const renderCvTag = (image) => {
@@ -298,14 +262,14 @@ export default function Results() {
 
   const isSingle = batch?.total_images === 1;
 
-  // Determine the AI action button label
-  const aiButtonLabel = submitting
+  // Determine the CV action button label
+  const cvButtonLabel = submitting
     ? "Submitting..."
     : classifyStatus === "completed"
-      ? "Re-run AI"
+      ? "Re-run CV"
       : classifyStatus === "failed"
-        ? "Retry AI"
-        : "Run AI Classification";
+        ? "Retry CV"
+        : "Run CV Classification";
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto" }}>
@@ -339,45 +303,19 @@ export default function Results() {
           {classifyStatus === null ||
           classifyStatus === "completed" ||
           classifyStatus === "failed" ? (
-            <>
-              <Button
-                icon={<ExperimentOutlined />}
-                style={{
-                  background: "#276749",
-                  borderColor: "#276749",
-                  color: "#fff",
-                }}
-                size={isMobile ? "small" : "middle"}
-                loading={submitting}
-                onClick={handleCVClassify}
-              >
-                Run CV
-              </Button>
-              {!isMobile && (
-                <Select
-                  value={selectedModel}
-                  onChange={setSelectedModel}
-                  style={{ width: 200 }}
-                  options={[
-                    { value: "claude-sonnet-4-6", label: "Sonnet 4.6 (Default)" },
-                    { value: "claude-opus-4-6", label: "Opus 4.6 (Premium)" },
-                  ]}
-                />
-              )}
-              <Button
-                icon={<RobotOutlined />}
-                style={{
-                  background: "#dd6b20",
-                  borderColor: "#dd6b20",
-                  color: "#fff",
-                }}
-                size={isMobile ? "small" : "middle"}
-                loading={submitting}
-                onClick={handleClassify}
-              >
-                {isMobile ? "Run AI" : aiButtonLabel}
-              </Button>
-            </>
+            <Button
+              icon={<ExperimentOutlined />}
+              style={{
+                background: "#276749",
+                borderColor: "#276749",
+                color: "#fff",
+              }}
+              size={isMobile ? "small" : "middle"}
+              loading={submitting}
+              onClick={handleCVClassify}
+            >
+              {isMobile ? "Run CV" : cvButtonLabel}
+            </Button>
           ) : (
             <Button
               danger
@@ -477,7 +415,7 @@ export default function Results() {
           type="warning"
           showIcon
           icon={<SyncOutlined spin />}
-          message={`${activeMethod === "cv" ? "CV classification" : "AI classification (Claude API)"}... ${classifyProgress.toFixed(0)}%`}
+          message={`CV classification... ${classifyProgress.toFixed(0)}%`}
           description={
             <Progress
               percent={parseFloat(classifyProgress.toFixed(0))}
@@ -562,21 +500,6 @@ export default function Results() {
               >
                 {image.original_filename}
               </Text>
-
-              {/* AI Reading */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 4,
-                }}
-              >
-                <Text type="secondary" style={{ fontSize: 14 }}>
-                  AI Reading:
-                </Text>
-                {renderAiTag(image)}
-              </div>
 
               {/* CV Reading */}
               <div
@@ -698,42 +621,24 @@ export default function Results() {
                       ? "Edit Correction"
                       : "Manual Correct"}
                   </Button>
-                  <Space style={{ width: "100%", marginTop: 6 }}>
-                    {image.reading_result && (
-                      <Button
-                        block
-                        size="small"
-                        icon={<CheckOutlined />}
-                        loading={saving}
-                        onClick={() => approveResult(image.id, image.reading_result)}
-                        style={{
-                          background: "#2b6cb0",
-                          borderColor: "#2b6cb0",
-                          color: "#fff",
-                          fontSize: 12,
-                        }}
-                      >
-                        Approve AI
-                      </Button>
-                    )}
-                    {image.cv_result && (
-                      <Button
-                        block
-                        size="small"
-                        icon={<CheckOutlined />}
-                        loading={saving}
-                        onClick={() => approveResult(image.id, image.cv_result)}
-                        style={{
-                          background: "#276749",
-                          borderColor: "#276749",
-                          color: "#fff",
-                          fontSize: 12,
-                        }}
-                      >
-                        Approve CV
-                      </Button>
-                    )}
-                  </Space>
+                  {image.cv_result && (
+                    <Button
+                      block
+                      size="small"
+                      icon={<CheckOutlined />}
+                      loading={saving}
+                      onClick={() => approveResult(image.id, image.cv_result)}
+                      style={{
+                        marginTop: 6,
+                        background: "#276749",
+                        borderColor: "#276749",
+                        color: "#fff",
+                        fontSize: 12,
+                      }}
+                    >
+                      Approve CV
+                    </Button>
+                  )}
                 </>
               )}
             </Card>

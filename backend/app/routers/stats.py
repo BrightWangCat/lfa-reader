@@ -45,29 +45,20 @@ def get_batch_stats(
             "total_images": 0,
             "distribution": {},
             "reading_coverage": {},
-            "ai_comparison": None,
             "cv_comparison": None,
             "patient_summary": None,
         }
 
-    # 统计最终结果分布（优先 manual_correction，其次 reading_result）
+    # Result distribution
     final_distribution = {}
-    ai_distribution = {}
     cv_distribution = {}
     correction_distribution = {}
 
-    ai_count = 0
     cv_count = 0
     correction_count = 0
-    ai_both_count = 0  # 同时有 AI 结果和手动修正
-    cv_both_count = 0  # 同时有 CV 结果和手动修正
+    cv_both_count = 0  # CV result + manual correction both exist
 
     for img in images:
-        # AI reading distribution
-        if img.reading_result:
-            ai_count += 1
-            ai_distribution[img.reading_result] = ai_distribution.get(img.reading_result, 0) + 1
-
         # CV reading distribution
         if img.cv_result:
             cv_count += 1
@@ -80,26 +71,16 @@ def get_batch_stats(
                 correction_distribution.get(img.manual_correction, 0) + 1
             )
 
-        # AI + manual both exist
-        if img.reading_result and img.manual_correction:
-            ai_both_count += 1
-
         # CV + manual both exist
         if img.cv_result and img.manual_correction:
             cv_both_count += 1
 
-        # Final result: manual_correction > reading_result > "Unclassified"
-        final = img.manual_correction or img.reading_result or "Unclassified"
+        # Final result: manual_correction > cv_result > "Unclassified"
+        final = img.manual_correction or img.cv_result or "Unclassified"
         final_distribution[final] = final_distribution.get(final, 0) + 1
 
     def _build_comparison(images, result_field, both_count):
-        """Build comparison metrics between a prediction field and manual_correction.
-
-        Args:
-            images: list of Image objects
-            result_field: attribute name on Image to use as prediction ("reading_result" or "cv_result")
-            both_count: number of images with both prediction and manual_correction
-        """
+        """Build comparison metrics between a prediction field and manual_correction."""
         if both_count == 0:
             return None
 
@@ -167,8 +148,6 @@ def get_batch_stats(
             "per_category": per_category,
         }
 
-    # AI vs Manual comparison
-    ai_comparison = _build_comparison(images, "reading_result", ai_both_count)
     # CV vs Manual comparison
     cv_comparison = _build_comparison(images, "cv_result", cv_both_count)
 
@@ -196,19 +175,15 @@ def get_batch_stats(
         "total_images": total,
         "distribution": {
             "final": final_distribution,
-            "ai_reading": ai_distribution,
             "cv_reading": cv_distribution,
             "manual_correction": correction_distribution,
         },
         "reading_coverage": {
-            "ai_read": ai_count,
             "cv_read": cv_count,
             "manually_corrected": correction_count,
-            "ai_and_manual": ai_both_count,
             "cv_and_manual": cv_both_count,
-            "unclassified": total - max(ai_count, cv_count, correction_count),
+            "unclassified": total - max(cv_count, correction_count),
         },
-        "ai_comparison": ai_comparison,
         "cv_comparison": cv_comparison,
         "patient_summary": patient_summary,
     }

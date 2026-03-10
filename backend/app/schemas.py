@@ -35,8 +35,6 @@ class ImageResponse(BaseModel):
     stored_filename: str
     file_size: int
     is_preprocessed: bool = False
-    reading_result: str | None
-    reading_confidence: str | None
     cv_result: str | None = None
     cv_confidence: str | None = None
     manual_correction: str | None
@@ -53,7 +51,7 @@ class BatchResponse(BaseModel):
     total_images: int
     created_at: datetime
     reading_status: str | None = None
-    claude_model: str | None = None
+    classification_model: str | None = None
     reading_error: str | None = None
     images: list[ImageResponse] = []
 
