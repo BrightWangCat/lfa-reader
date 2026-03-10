@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import User, UploadBatch, Image
-from app.auth import get_current_user, require_admin
+from app.auth import get_current_user, require_admin, require_batch_or_admin
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
@@ -16,10 +16,10 @@ router = APIRouter(prefix="/api/export", tags=["export"])
 @router.get("/batch/{batch_id}/csv")
 def export_batch_csv(
     batch_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_batch_or_admin),
     db: Session = Depends(get_db),
 ):
-    """Export batch results as CSV."""
+    """Export batch results as CSV. Requires batch or admin role."""
     batch, images = _get_batch_data(batch_id, current_user, db)
 
     output = io.StringIO()
@@ -75,10 +75,10 @@ def export_batch_csv(
 @router.get("/batch/{batch_id}/excel")
 def export_batch_excel(
     batch_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_batch_or_admin),
     db: Session = Depends(get_db),
 ):
-    """Export batch results as Excel with multiple sheets."""
+    """Export batch results as Excel. Requires batch or admin role."""
     batch, images = _get_batch_data(batch_id, current_user, db)
 
     from openpyxl import Workbook
@@ -310,7 +310,7 @@ def _get_batch_data(batch_id: int, current_user: User, db: Session):
     )
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    if not current_user.is_admin and batch.user_id != current_user.id:
+    if current_user.role != "admin" and batch.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     images = (

@@ -84,6 +84,7 @@ export default function History() {
       key: "id",
       width: 60,
       align: "center",
+      responsive: ["md"],
     },
     {
       title: "Batch Name",
@@ -99,14 +100,14 @@ export default function History() {
       title: "Images",
       dataIndex: "total_images",
       key: "images",
-      width: 90,
+      width: 70,
       align: "center",
     },
     {
-      title: "AI Status",
+      title: "Status",
       dataIndex: "reading_status",
       key: "status",
-      width: 100,
+      width: 90,
       align: "center",
       render: (status) => {
         const config = statusConfig[status];
@@ -122,6 +123,7 @@ export default function History() {
       dataIndex: "created_at",
       key: "date",
       width: 230,
+      responsive: ["lg"],
       render: (date) => formatDate(date),
     },
     {
@@ -129,12 +131,13 @@ export default function History() {
       dataIndex: "username",
       key: "user",
       width: 120,
+      responsive: ["md"],
       render: (u) => u || "Unknown",
     },
     {
       title: "Actions",
       key: "actions",
-      width: 280,
+      width: 200,
       render: (_, record) => (
         <Space size="small" wrap>
           <Button
@@ -217,6 +220,7 @@ export default function History() {
         dataSource={batches}
         rowKey="id"
         loading={loading}
+        scroll={{ x: 500 }}
         locale={{
           emptyText: (
             <Empty description="No test results yet.">

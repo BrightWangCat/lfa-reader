@@ -65,10 +65,20 @@ def get_current_user(
 
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Dependency that ensures the current user is an admin."""
-    if not current_user.is_admin:
+    """Dependency that ensures the current user has admin role."""
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin users can use batch upload",
+            detail="Admin access required",
+        )
+    return current_user
+
+
+def require_batch_or_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency that ensures the current user has batch or admin role."""
+    if current_user.role not in ("batch", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Batch upload permission required",
         )
     return current_user

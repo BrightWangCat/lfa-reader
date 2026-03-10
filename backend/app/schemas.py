@@ -13,7 +13,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     username: str
-    is_admin: bool = False
+    role: str = "single"
     created_at: datetime
 
     model_config = {"from_attributes": True}

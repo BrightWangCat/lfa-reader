@@ -14,6 +14,8 @@ import {
   Collapse,
   Typography,
   App,
+  Grid,
+  Dropdown,
 } from "antd";
 import {
   EditOutlined,
@@ -28,10 +30,13 @@ import {
   StopOutlined,
   FileExcelOutlined,
   ExperimentOutlined,
+  FileImageOutlined,
+  EllipsisOutlined,
 } from "@ant-design/icons";
 import api, { API_BASE_URL } from "../services/api";
 import { useAuth } from "../context/AuthContext";
-import { FileImageOutlined } from "@ant-design/icons";
+
+const { useBreakpoint } = Grid;
 
 const { Title, Text } = Typography;
 
@@ -56,6 +61,8 @@ export default function Results() {
   const batchId = searchParams.get("batch");
   const { message } = App.useApp();
   const { user } = useAuth();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
 
   const [batch, setBatch] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -328,7 +335,7 @@ export default function Results() {
             Uploaded {new Date(batch.created_at).toLocaleString()}
           </Text>
         </div>
-        <Space wrap>
+        <Space wrap size={isMobile ? "small" : "middle"}>
           {classifyStatus === null ||
           classifyStatus === "completed" ||
           classifyStatus === "failed" ? (
@@ -340,20 +347,23 @@ export default function Results() {
                   borderColor: "#276749",
                   color: "#fff",
                 }}
+                size={isMobile ? "small" : "middle"}
                 loading={submitting}
                 onClick={handleCVClassify}
               >
                 Run CV
               </Button>
-              <Select
-                value={selectedModel}
-                onChange={setSelectedModel}
-                style={{ width: 200 }}
-                options={[
-                  { value: "claude-sonnet-4-6", label: "Sonnet 4.6 (Default)" },
-                  { value: "claude-opus-4-6", label: "Opus 4.6 (Premium)" },
-                ]}
-              />
+              {!isMobile && (
+                <Select
+                  value={selectedModel}
+                  onChange={setSelectedModel}
+                  style={{ width: 200 }}
+                  options={[
+                    { value: "claude-sonnet-4-6", label: "Sonnet 4.6 (Default)" },
+                    { value: "claude-opus-4-6", label: "Opus 4.6 (Premium)" },
+                  ]}
+                />
+              )}
               <Button
                 icon={<RobotOutlined />}
                 style={{
@@ -361,10 +371,11 @@ export default function Results() {
                   borderColor: "#dd6b20",
                   color: "#fff",
                 }}
+                size={isMobile ? "small" : "middle"}
                 loading={submitting}
                 onClick={handleClassify}
               >
-                {aiButtonLabel}
+                {isMobile ? "Run AI" : aiButtonLabel}
               </Button>
             </>
           ) : (
@@ -376,7 +387,53 @@ export default function Results() {
               Cancel Job
             </Button>
           )}
-          {!isSingle && (
+          {!isSingle && isMobile ? (
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: "csv",
+                    icon: <DownloadOutlined />,
+                    label: (
+                      <a href={`${API_BASE_URL}/api/export/batch/${batchId}/csv?token=${localStorage.getItem("token")}`}>
+                        Export CSV
+                      </a>
+                    ),
+                  },
+                  {
+                    key: "excel",
+                    icon: <FileExcelOutlined />,
+                    label: (
+                      <a href={`${API_BASE_URL}/api/export/batch/${batchId}/excel?token=${localStorage.getItem("token")}`}>
+                        Export Excel
+                      </a>
+                    ),
+                  },
+                  ...(user?.role === "admin"
+                    ? [
+                        {
+                          key: "images",
+                          icon: <FileImageOutlined />,
+                          label: (
+                            <a href={`${API_BASE_URL}/api/export/batch/${batchId}/images?token=${localStorage.getItem("token")}`}>
+                              Export Images
+                            </a>
+                          ),
+                        },
+                      ]
+                    : []),
+                  {
+                    key: "stats",
+                    icon: <BarChartOutlined />,
+                    label: <Link to={`/stats?batch=${batchId}`}>View Statistics</Link>,
+                  },
+                ],
+              }}
+              placement="bottomRight"
+            >
+              <Button icon={<EllipsisOutlined />} size="small">More</Button>
+            </Dropdown>
+          ) : !isSingle ? (
             <>
               <Button
                 icon={<DownloadOutlined />}
@@ -392,7 +449,7 @@ export default function Results() {
               >
                 Export Excel
               </Button>
-              {user?.is_admin && (
+              {user?.role === "admin" && (
                 <Button
                   icon={<FileImageOutlined />}
                   href={`${API_BASE_URL}/api/export/batch/${batchId}/images?token=${localStorage.getItem("token")}`}
@@ -405,9 +462,11 @@ export default function Results() {
                 <Button icon={<BarChartOutlined />}>View Statistics</Button>
               </Link>
             </>
-          )}
+          ) : null}
           <Link to="/upload">
-            <Button icon={<PlusOutlined />}>New Test</Button>
+            <Button icon={<PlusOutlined />} size={isMobile ? "small" : "middle"}>
+              New Test
+            </Button>
           </Link>
         </Space>
       </div>

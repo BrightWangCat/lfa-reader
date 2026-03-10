@@ -9,7 +9,7 @@ from typing import Optional
 from app.database import get_db
 from app.models import User, UploadBatch, Image, PatientInfo
 from app.schemas import BatchResponse, BatchListResponse, PatientInfoResponse
-from app.auth import get_current_user, require_admin
+from app.auth import get_current_user, require_admin, require_batch_or_admin
 from app.config import UPLOAD_DIR
 from app.services.claude_inference import cancel_classification
 from app.services.image_preprocessor_for_LLM import preprocess_cassette, PreprocessingError
@@ -148,10 +148,10 @@ async def upload_single(
 async def upload_batch(
     files: list[UploadFile] = File(...),
     batch_name: Optional[str] = Form(None),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_batch_or_admin),
     db: Session = Depends(get_db),
 ):
-    """Upload one or more images as a batch. Admin only."""
+    """Upload one or more images as a batch. Requires batch or admin role."""
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
 
@@ -236,7 +236,7 @@ def list_batches(
 ):
     """List batches. Admin sees all batches; regular users see only their own."""
     query = db.query(UploadBatch)
-    if not current_user.is_admin:
+    if not current_user.role == "admin":
         query = query.filter(UploadBatch.user_id == current_user.id)
     batches = query.order_by(UploadBatch.created_at.desc()).all()
 
@@ -265,7 +265,7 @@ def get_batch(
         .options(joinedload(UploadBatch.images).joinedload(Image.patient_info))
         .filter(UploadBatch.id == batch_id)
     )
-    if not current_user.is_admin:
+    if not current_user.role == "admin":
         query = query.filter(UploadBatch.user_id == current_user.id)
     batch = query.first()
     if not batch:
@@ -281,7 +281,7 @@ def delete_batch(
 ):
     """Delete a batch and all its images. Admin can delete any batch."""
     query = db.query(UploadBatch).filter(UploadBatch.id == batch_id)
-    if not current_user.is_admin:
+    if not current_user.role == "admin":
         query = query.filter(UploadBatch.user_id == current_user.id)
     batch = query.first()
     if not batch:
@@ -322,7 +322,7 @@ def get_image_file(
     ).first()
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    if not current_user.is_admin and batch.user_id != current_user.id:
+    if not current_user.role == "admin" and batch.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Determine which file to serve: preprocessed by default, original if requested

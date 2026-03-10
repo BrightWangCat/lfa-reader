@@ -3,6 +3,7 @@ import {
   Table,
   Tag,
   Button,
+  Select,
   Space,
   Typography,
   Popconfirm,
@@ -14,11 +15,19 @@ import {
   CrownOutlined,
   DeleteOutlined,
   UserOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
 
 const { Title } = Typography;
+
+// Role display configuration
+const roleConfig = {
+  admin: { color: "gold", icon: <CrownOutlined />, label: "Admin" },
+  batch: { color: "blue", icon: <TeamOutlined />, label: "Batch" },
+  single: { color: "default", icon: <UserOutlined />, label: "Single" },
+};
 
 export default function UserManagement() {
   const { user: currentUser } = useAuth();
@@ -44,18 +53,16 @@ export default function UserManagement() {
     }
   };
 
-  const handleToggleAdmin = async (userId) => {
+  const handleSetRole = async (userId, newRole) => {
     setActionLoading((prev) => ({ ...prev, [userId]: true }));
     try {
-      const res = await api.put(`/api/users/${userId}/admin`);
+      const res = await api.put(`/api/users/${userId}/role`, { role: newRole });
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? res.data : u))
       );
-      message.success(
-        res.data.is_admin ? "Admin privileges granted" : "Admin privileges revoked"
-      );
+      message.success(`Role updated to ${newRole}`);
     } catch (err) {
-      message.error(err.response?.data?.detail || "Failed to update user");
+      message.error(err.response?.data?.detail || "Failed to update role");
     } finally {
       setActionLoading((prev) => ({ ...prev, [userId]: false }));
     }
@@ -94,13 +101,15 @@ export default function UserManagement() {
     {
       title: "Role",
       key: "role",
-      width: 100,
-      render: (_, record) =>
-        record.is_admin ? (
-          <Tag icon={<CrownOutlined />} color="gold">Admin</Tag>
-        ) : (
-          <Tag icon={<UserOutlined />} color="default">User</Tag>
-        ),
+      width: 120,
+      render: (_, record) => {
+        const config = roleConfig[record.role] || roleConfig.single;
+        return (
+          <Tag icon={config.icon} color={config.color}>
+            {config.label}
+          </Tag>
+        );
+      },
     },
     {
       title: "Registered",
@@ -111,20 +120,24 @@ export default function UserManagement() {
     {
       title: "Actions",
       key: "actions",
-      width: 220,
+      width: 260,
       render: (_, record) => {
         const isSelf = record.id === currentUser?.id;
         return (
           <Space>
-            <Button
-              size="small"
-              icon={<CrownOutlined />}
-              loading={actionLoading[record.id]}
+            <Select
+              value={record.role}
+              onChange={(value) => handleSetRole(record.id, value)}
               disabled={isSelf}
-              onClick={() => handleToggleAdmin(record.id)}
-            >
-              {record.is_admin ? "Remove Admin" : "Set Admin"}
-            </Button>
+              loading={actionLoading[record.id]}
+              style={{ width: 110 }}
+              size="small"
+              options={[
+                { value: "single", label: "Single" },
+                { value: "batch", label: "Batch" },
+                { value: "admin", label: "Admin" },
+              ]}
+            />
             <Popconfirm
               title="Delete this user?"
               description="All batches and images owned by this user will be permanently deleted."

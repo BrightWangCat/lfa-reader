@@ -575,7 +575,7 @@ export default function UploadPage() {
       {/* Mode selector */}
       {!mode && (
         <Row gutter={16} style={{ marginBottom: 24 }}>
-          <Col span={user?.is_admin ? 12 : 24}>
+          <Col xs={24} sm={["batch", "admin"].includes(user?.role) ? 12 : 24}>
             <Card
               hoverable
               onClick={() => setMode("single")}
@@ -593,8 +593,8 @@ export default function UploadPage() {
               </Text>
             </Card>
           </Col>
-          {user?.is_admin && (
-            <Col span={12}>
+          {["batch", "admin"].includes(user?.role) && (
+            <Col xs={24} sm={12}>
               <Card
                 hoverable
                 onClick={() => setMode("batch")}

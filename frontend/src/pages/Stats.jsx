@@ -213,6 +213,7 @@ export default function Stats() {
         dataSource={tableData}
         pagination={false}
         size="small"
+        scroll={{ x: 400 }}
       />
     );
   };
@@ -311,6 +312,7 @@ export default function Stats() {
           dataSource={distData}
           pagination={false}
           size="small"
+          scroll={{ x: 400 }}
           style={{ marginBottom: 32 }}
         />
       )}
@@ -433,6 +435,7 @@ function ComparisonSection({ title, comparison, methodLabel, accentColor, metric
             }))}
             pagination={false}
             size="small"
+            scroll={{ x: 400 }}
             style={{ marginBottom: 32 }}
           />
         </>

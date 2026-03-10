@@ -3,6 +3,7 @@ import shutil
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import User, UploadBatch
@@ -58,27 +59,40 @@ def list_users(
     return db.query(User).order_by(User.id).all()
 
 
-@router.put("/{user_id}/admin", response_model=UserResponse)
-def toggle_admin(
+class SetRoleRequest(BaseModel):
+    role: str
+
+
+@router.put("/{user_id}/role", response_model=UserResponse)
+def set_user_role(
     user_id: int,
+    body: SetRoleRequest,
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """Toggle admin status for a user. Admin only.
+    """Set the role for a user. Admin only.
 
-    Cannot remove admin status from yourself.
+    Valid roles: single, batch, admin.
+    Cannot change your own role.
     """
+    valid_roles = ("single", "batch", "admin")
+    if body.role not in valid_roles:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}",
+        )
+
     target = db.query(User).filter(User.id == user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if target.id == current_user.id and target.is_admin:
+    if target.id == current_user.id:
         raise HTTPException(
             status_code=400,
-            detail="Cannot remove your own admin privileges",
+            detail="Cannot change your own role",
         )
 
-    target.is_admin = not target.is_admin
+    target.role = body.role
     db.commit()
     db.refresh(target)
     return target

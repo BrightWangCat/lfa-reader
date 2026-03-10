@@ -53,7 +53,7 @@ def correct_reading(
     ).first()
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    if not current_user.is_admin and batch.user_id != current_user.id:
+    if not current_user.role == "admin" and batch.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     image.manual_correction = body.manual_correction
@@ -100,7 +100,7 @@ def submit_classification(
     ).first()
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    if not current_user.is_admin and batch.user_id != current_user.id:
+    if not current_user.role == "admin" and batch.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Prevent duplicate submissions
@@ -176,7 +176,7 @@ def get_classification_status(
     ).first()
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    if not current_user.is_admin and batch.user_id != current_user.id:
+    if not current_user.role == "admin" and batch.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Determine which result field to check based on the active method
@@ -231,7 +231,7 @@ def cancel_classification_endpoint(
     ).first()
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    if not current_user.is_admin and batch.user_id != current_user.id:
+    if not current_user.role == "admin" and batch.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     if batch.reading_status != "running":
