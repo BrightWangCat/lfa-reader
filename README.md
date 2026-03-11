@@ -86,7 +86,7 @@ cp .env.example .env
 # Edit .env and set SECRET_KEY to a random string for production
 
 # Start the server
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
 ### Frontend Setup
