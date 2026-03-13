@@ -1,6 +1,6 @@
 # FeLV/FIV LFA Reader
 
-**Online Access**: http://ec2-16-59-45-157.us-east-2.compute.amazonaws.com:8080
+**Online Access**: http://16.59.11.102:8080
 
 A web application for automated reading and classification of **FeLV/FIV lateral flow assay (LFA)** test strips used in veterinary diagnostics. Upload photos of test cassettes and get computer-vision-based classification results.
 
