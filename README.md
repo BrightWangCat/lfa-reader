@@ -21,7 +21,7 @@ A web application for automated reading and classification of **FeLV/FIV lateral
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | React 19, Vite 7, Ant Design 6, React Router 7, react-webcam |
+| **Frontend** | React 19, Vite 7, Ant Design 6, Ant Design Charts, React Router 7, react-webcam, Leaflet |
 | **Backend** | Python 3.12, FastAPI, SQLAlchemy, Uvicorn |
 | **CV** | OpenCV (headless) |
 | **Database** | SQLite |
@@ -56,8 +56,9 @@ lfa-reader/
 │   │   ├── main.jsx
 │   │   ├── services/api.js      # Axios API client
 │   │   ├── context/AuthContext.jsx
-│   │   ├── components/          # Navbar, Layout, ProtectedRoute, CameraCapture
-│   │   └── pages/               # Login, Register, Upload, Results, History, Stats, UserManagement
+│   │   ├── components/          # Navbar, Layout, ProtectedRoute, CameraCapture, ZipCodeMap
+│   │   ├── pages/               # Login, Register, Upload, Results, History, Stats, Statistics, UserManagement
+│   │   └── data/                # Static data files
 │   ├── package.json
 │   └── vite.config.js
 ├── archive/                     # Deprecated modules (LLM classifier)
@@ -117,19 +118,55 @@ The frontend dev server runs on `http://localhost:5173` and proxies API requests
 
 ## API Endpoints
 
+### Health
+
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/health` | Health check |
+
+### Users
+
+| Method | Path | Description |
+|--------|------|-------------|
 | `POST` | `/api/users/register` | User registration |
 | `POST` | `/api/users/login` | User login (returns JWT) |
+| `GET` | `/api/users/me` | Get current user profile |
+| `GET` | `/api/users/` | List all users (admin) |
+| `PUT` | `/api/users/{user_id}/role` | Set user role (admin) |
+| `DELETE` | `/api/users/{user_id}` | Delete user and associated data (admin) |
+
+### Upload
+
+| Method | Path | Description |
+|--------|------|-------------|
 | `POST` | `/api/upload/single` | Upload single test strip image |
 | `POST` | `/api/upload/batch` | Upload multiple images as a batch |
+| `GET` | `/api/upload/batches` | List current user's batches |
 | `GET` | `/api/upload/batch/{id}` | Get batch with all images |
+| `DELETE` | `/api/upload/batch/{id}` | Delete batch and associated images |
+| `GET` | `/api/upload/image/{id}` | Serve image file (preprocessed by default, original with ?original=true) |
+
+### Readings
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/readings/categories` | Get valid classification categories |
 | `POST` | `/api/readings/batch/{id}/classify` | Start CV classification |
 | `GET` | `/api/readings/batch/{id}/status` | Poll classification progress |
 | `POST` | `/api/readings/batch/{id}/cancel` | Cancel running classification |
 | `PUT` | `/api/readings/image/{id}/correct` | Manual correction |
+
+### Statistics
+
+| Method | Path | Description |
+|--------|------|-------------|
 | `GET` | `/api/stats/batch/{id}` | Get batch statistics |
+| `GET` | `/api/stats/global` | Get global statistics across all users |
+
+### Export
+
+| Method | Path | Description |
+|--------|------|-------------|
 | `GET` | `/api/export/batch/{id}/csv` | Export results as CSV |
 | `GET` | `/api/export/batch/{id}/excel` | Export results as Excel |
 | `GET` | `/api/export/batch/{id}/images` | Export images as ZIP (admin) |
