@@ -1,68 +1,78 @@
 # FeLV/FIV LFA Reader
 
-**Online Access**: https://16.59.11.102:8080 (self-signed certificate; accept the browser warning on first visit)
+An automated reading and classification system for **FeLV/FIV lateral flow assay (LFA)** test strips used in veterinary diagnostics. Upload photos of test cassettes and get computer-vision-based classification results — available as both a **web application** and a **native iOS app**.
 
-A web application for automated reading and classification of **FeLV/FIV lateral flow assay (LFA)** test strips used in veterinary diagnostics. Upload photos of test cassettes and get computer-vision-based classification results.
+**Live Demo**: https://16.59.11.102:8080 (self-signed certificate; accept the browser warning on first visit)
 
 ## Features
 
-- **Camera capture with scan guide**: Mobile camera capture with a scan-frame overlay for cassette alignment. Auto-crops to the guide region. Falls back to system camera on non-HTTPS environments.
-- **OpenCV classification pipeline**: Local computer-vision pipeline using LAB color-space analysis and two-stage band detection. No external API calls required.
-- **Image preprocessing**: Automatic cassette detection, contour straightening, orientation correction, and contrast enhancement
-- **Batch processing**: Upload multiple test strip images at once with real-time progress tracking
-- **Result categories**: Negative, Positive L (FeLV), Positive I (FIV), Positive L+I (both), Invalid
-- **Manual correction**: Review and override CV classifications when needed
-- **Patient metadata**: Attach species, age, sex, breed, and zip code to each test image
-- **Statistics dashboard**: View aggregated classification results, CV vs Manual comparison metrics
-- **Export**: Download results as CSV or Excel spreadsheets, export preprocessed images as ZIP
-- **User management**: Registration, login (JWT auth), role-based access control (single / batch / admin)
+| Feature | Web | iOS |
+|---------|:---:|:---:|
+| Camera capture with scan-guide overlay | ✅ | ✅ |
+| Photo library upload | ✅ | ✅ |
+| OpenCV classification (LAB color-space analysis) | ✅ | ✅ |
+| Automatic image preprocessing | ✅ | ✅ |
+| Batch upload (multiple images) | ✅ | — |
+| Manual correction override | ✅ | ✅ |
+| Patient metadata (species, age, sex, breed, zip code) | ✅ | ✅ |
+| Statistics dashboard | ✅ | ✅ |
+| Zip code geographic heatmap | ✅ | ✅ |
+| CSV / Excel export | ✅ | — |
+| Admin user management | ✅ | — |
+| Pull-to-refresh & offline batch caching | — | ✅ |
+
+### Classification Categories
+
+- **Negative** — Only control (C) band visible
+- **Positive L** — C + FeLV band
+- **Positive I** — C + FIV band
+- **Positive L+I** — C + both bands
+- **Invalid** — No control band detected
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | React 19, Vite 7, Ant Design 6, Ant Design Charts, React Router 7, react-webcam, Leaflet |
+| **iOS App** | Swift, SwiftUI, AVFoundation, MVVM, async/await |
+| **Web Frontend** | React 19, Vite 7, Ant Design 6, Leaflet, react-webcam |
 | **Backend** | Python 3.12, FastAPI, SQLAlchemy, Uvicorn |
-| **CV** | OpenCV (headless) |
+| **Computer Vision** | OpenCV (headless), LAB color-space two-stage band detection |
 | **Database** | SQLite |
 | **Auth** | JWT (python-jose), bcrypt (passlib) |
 
 ## Project Structure
 
 ```
-lfa-reader/
-├── backend/
+FeLV-FIV-AI-website/
+├── LFAReader/                    # iOS native app
+│   ├── LFAReader.xcodeproj/
+│   └── LFAReader/
+│       ├── Views/                # SwiftUI views (15 files)
+│       ├── ViewModels/           # @Observable view models (6 files)
+│       ├── Models/               # Codable data models (6 files)
+│       ├── Services/             # APIClient, CameraService, ImageCache
+│       └── Resources/            # Assets, localization
+│
+├── backend/                      # Python FastAPI backend
 │   ├── app/
-│   │   ├── main.py              # FastAPI app, startup migrations
-│   │   ├── config.py            # Environment-based configuration
-│   │   ├── database.py          # SQLAlchemy engine & session
-│   │   ├── models.py            # User, UploadBatch, Image, PatientInfo
-│   │   ├── schemas.py           # Pydantic request/response schemas
-│   │   ├── auth.py              # JWT token utilities
-│   │   ├── routers/
-│   │   │   ├── users.py         # Registration, login, user management
-│   │   │   ├── upload.py        # Image upload & batch creation
-│   │   │   ├── reading.py       # CV classification triggers
-│   │   │   ├── stats.py         # Statistics endpoints
-│   │   │   └── export.py        # CSV / Excel / image ZIP export
+│   │   ├── main.py               # App entry point
+│   │   ├── models.py             # SQLAlchemy ORM models
+│   │   ├── schemas.py            # Pydantic schemas
+│   │   ├── auth.py               # JWT authentication
+│   │   ├── routers/              # API route handlers
 │   │   └── services/
-│   │       ├── cv_inference.py        # OpenCV band detection & classification
-│   │       └── image_preprocessor.py  # Cassette detection & strip preprocessing
-│   ├── requirements.txt
-│   └── .env.example
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   ├── services/api.js      # Axios API client
-│   │   ├── context/AuthContext.jsx
-│   │   ├── components/          # Navbar, Layout, ProtectedRoute, CameraCapture, ZipCodeMap
-│   │   ├── pages/               # Login, Register, Upload, Results, History, Stats, Statistics, UserManagement
-│   │   └── data/                # Static data files
-│   ├── package.json
-│   └── vite.config.js
-├── archive/                     # Deprecated modules (LLM classifier)
-└── README.md
+│   │       ├── cv_inference.py         # OpenCV band detection
+│   │       └── image_preprocessor.py   # Cassette detection & preprocessing
+│   └── requirements.txt
+│
+└── frontend/                     # React web app
+    ├── src/
+    │   ├── pages/                # React pages (8 files)
+    │   ├── components/           # Reusable components (5 files)
+    │   ├── context/              # AuthContext
+    │   └── services/             # Axios API client
+    ├── package.json
+    └── vite.config.js
 ```
 
 ## Getting Started
@@ -71,128 +81,91 @@ lfa-reader/
 
 - Python 3.12+
 - Node.js 18+
-- npm 9+
+- Xcode 15+ (for iOS development, macOS only)
 
-### Backend Setup
+### Backend
 
 ```bash
 cd backend
-
-# Create and activate virtual environment
 python3 -m venv venv
 source venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
 
-# Configure environment
-cp .env.example .env
-# Edit .env and set SECRET_KEY to a random string for production
+# Create .env file
+cat > .env << EOF
+SECRET_KEY=your-secret-key-here
+CORS_ORIGINS=http://localhost:5173
+DATABASE_URL=sqlite:///./lfa_reader.db
+EOF
 
-# Start the server
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-### Frontend Setup
+### Web Frontend
 
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start the dev server
-npm run dev
+npm run dev    # http://localhost:5173
 ```
 
-The frontend dev server runs on `http://localhost:5173` and proxies API requests to the backend at `http://localhost:8000`.
+### iOS App
 
-### Environment Variables
+```bash
+# Open in Xcode
+open LFAReader/LFAReader.xcodeproj
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `SECRET_KEY` | Yes | `dev-secret-key-...` | JWT signing key |
-| `DATABASE_URL` | No | `sqlite:///./lfa_reader.db` | Database connection string |
-| `CORS_ORIGINS` | No | `http://localhost:5173` | Comma-separated allowed origins |
-| `UPLOAD_DIR` | No | `./uploads` | Directory for uploaded images |
+# Or build from command line
+xcodebuild -project LFAReader/LFAReader.xcodeproj -scheme LFAReader \
+  -destination 'platform=iOS Simulator,name=iPhone 16' build
+```
 
-## API Endpoints
+> **Note**: The iOS app requires iOS 17.0+. Update the API base URL in `APIClient.swift` to point to your backend server.
 
-### Health
+## API Overview
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/health` | Health check |
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/users/register` | Register new user |
+| `POST /api/users/login` | Login (returns JWT) |
+| `POST /api/upload/single` | Upload single image + patient info |
+| `POST /api/upload/batch` | Upload multiple images |
+| `GET /api/upload/batches` | List user's batches |
+| `POST /api/readings/batch/{id}/classify` | Start CV classification |
+| `GET /api/readings/batch/{id}/status` | Poll classification progress |
+| `PUT /api/readings/image/{id}/correct` | Manual correction |
+| `GET /api/stats/global` | Global statistics |
+| `GET /api/export/batch/{id}/csv` | Export results as CSV |
 
-### Users
+Full API documentation is available at `/docs` (Swagger UI) when the backend is running.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/users/register` | User registration |
-| `POST` | `/api/users/login` | User login (returns JWT) |
-| `GET` | `/api/users/me` | Get current user profile |
-| `GET` | `/api/users/` | List all users (admin) |
-| `PUT` | `/api/users/{user_id}/role` | Set user role (admin) |
-| `DELETE` | `/api/users/{user_id}` | Delete user and associated data (admin) |
+## Computer Vision Pipeline
 
-### Upload
+The classification engine uses a deterministic two-stage approach (no ML model required):
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/upload/single` | Upload single test strip image |
-| `POST` | `/api/upload/batch` | Upload multiple images as a batch |
-| `GET` | `/api/upload/batches` | List current user's batches |
-| `GET` | `/api/upload/batch/{id}` | Get batch with all images |
-| `DELETE` | `/api/upload/batch/{id}` | Delete batch and associated images |
-| `GET` | `/api/upload/image/{id}` | Serve image file (preprocessed by default, original with ?original=true) |
+1. **Image Preprocessing** — Cassette detection via contour analysis, straightening, orientation correction, and contrast enhancement
+2. **Band Detection** — LAB color-space analysis targeting the a-channel for red/purple/pink band peaks
+3. **Zone Scoring** — 99th percentile (p99) scoring in C/L/I zones for high sensitivity
+4. **Prominence Validation** — Column profile prominence check for specificity, distinguishing genuine bands from noise
+5. **Rule-based Classification** — Maps detected band combinations to result categories
 
-### Readings
+## User Roles
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/readings/categories` | Get valid classification categories |
-| `POST` | `/api/readings/batch/{id}/classify` | Start CV classification |
-| `GET` | `/api/readings/batch/{id}/status` | Poll classification progress |
-| `POST` | `/api/readings/batch/{id}/cancel` | Cancel running classification |
-| `PUT` | `/api/readings/image/{id}/correct` | Manual correction |
+| Role | Permissions |
+|------|------------|
+| `single` | Single image upload, view own results |
+| `batch` | All of `single` + batch uploads |
+| `admin` | All of `batch` + user management, full data access, image export |
 
-### Statistics
+## Environment Variables
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/stats/batch/{id}` | Get batch statistics |
-| `GET` | `/api/stats/global` | Get global statistics across all users |
-
-### Export
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/export/batch/{id}/csv` | Export results as CSV |
-| `GET` | `/api/export/batch/{id}/excel` | Export results as Excel |
-| `GET` | `/api/export/batch/{id}/images` | Export images as ZIP (admin) |
-
-## Classification Pipeline
-
-1. Detect and crop the test cassette from the uploaded photo
-2. Straighten and orient the cassette (FeLV/FIV label left, sample well right)
-3. Extract the analysis region covering the strip opening
-4. Convert to LAB color space; compute column-wise a-channel profile
-5. Two-stage band detection:
-   - **Stage 1 (Sensitivity)**: Zone-based 99th percentile scoring with adaptive thresholds
-   - **Stage 2 (Specificity)**: Column profile prominence validation to eliminate cross-zone spillover
-6. Dual-band ratio validation to distinguish genuine dual-positives from single-band spillover
-7. Apply deterministic rules: C/L/I band presence maps to classification category
-
-### Result Categories
-
-| Category | Meaning |
-|----------|---------|
-| Negative | Only C (control) band visible |
-| Positive L | C band + L (FeLV) band visible |
-| Positive I | C band + I (FIV) band visible |
-| Positive L+I | C band + both L and I bands visible |
-| Invalid | No C (control) band detected |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SECRET_KEY` | JWT signing key (required) | — |
+| `CORS_ORIGINS` | Allowed CORS origins | `http://localhost:5173` |
+| `DATABASE_URL` | Database connection string | `sqlite:///./lfa_reader.db` |
+| `UPLOAD_DIR` | Image upload directory | `./uploads` |
 
 ## License
 
-This project is for research and educational purposes.
+This project is intended for veterinary diagnostic research purposes.
