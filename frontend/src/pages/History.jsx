@@ -100,7 +100,7 @@ export default function History() {
       title: "Images",
       dataIndex: "total_images",
       key: "images",
-      width: 70,
+      width: 90,
       align: "center",
     },
     {
