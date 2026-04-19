@@ -41,13 +41,13 @@ lfa-reader/
 2. 破坏性操作(`rm`、`rm -rf`、`truncate`、`DROP`、`DELETE` 全表、迁移回滚、覆盖写入数据库或 `.env`、重置 uploads 目录等)执行前必须:
    - 2.1 列出具体目标路径或数据范围、预计影响的记录数;
    - 2.2 征得用户明确同意,不得以"默认安全"或"只是清理"为由省略确认;
-   - 2.3 能备份的先备份。统一调用 `scripts/backup.sh manual`,产物落 `/home/ubuntu/backups/lfa-reader/manual/`,严禁绕过此脚本自己拼 `cp`。
+   - 2.3 常规备份仅用于 AWS 上即将同步的 backend 代码变更。统一在 AWS 主机仓库根目录调用 `scripts/backup.sh backend-change`;该脚本只在待同步变更包含 `apps/backend/` 时备份数据库,严禁绕过此脚本自己拼 `cp`。
 3. 严禁把用户数据、数据库内容、`.env`、凭证、上传文件内容贴入对话、commit message、日志、issue、第三方服务或任何会离开本机的通道。
 4. 调试时如需查看用户数据,只读取必要的最小字段,严禁全表导出或打印。
-5. 数据库 schema 变更必须走迁移脚本,严禁直接在生产数据库上手改表结构;迁移前先 `scripts/backup.sh manual`,执行后确认快照可恢复。
+5. 数据库 schema 变更必须走迁移脚本,严禁直接在生产数据库上手改表结构;在 AWS 上同步包含 `apps/backend/` 的变更前先运行 `scripts/backup.sh backend-change`,执行后确认快照可恢复。
 6. 发现任何可能已造成数据损坏或泄露的操作,立即停下并如实告知用户,严禁隐瞒或自行尝试覆盖恢复。回退用 `scripts/restore.sh`,严禁手工 `cp` 覆盖。
 7. 不确定某操作是否会影响用户数据时,默认视为会影响,按本节规则请求确认。
-8. 自动备份机制:宿主机已装 systemd timer(hourly/daily/weekly),产物在 `/home/ubuntu/backups/lfa-reader/`。运维细节见 `scripts/README.md`。timer 与 unit 文件不在仓库内,机器重做时需重新装。
+8. 常规备份不再使用 hourly/daily/weekly timer。仅在 AWS 上同步包含 `apps/backend/` 的变更前执行 `scripts/backup.sh backend-change`,产物落在 `/home/ubuntu/backups/lfa-reader/backend-change/`;执行 `scripts/restore.sh` 时仍会生成 `pre-restore/` 安全快照。运维细节见 `scripts/README.md`。
 
 ## 行为准则
 
@@ -89,6 +89,7 @@ lfa-reader/
 本机修改代码后,需要在 AWS 环境验证 Web 或 backend 时,先确认用户已把最新代码推送到 Git 远程仓库,再 SSH 到 AWS 主机 `/home/ubuntu/lfa-reader` 拉取并重启服务。在 AWS 主机仓库根目录执行:
 
 - 当前本机会话已配置可用 SSH 主机别名:`aws-mingshi`
+- 同步前检查并按需备份数据库:`scripts/backup.sh backend-change`
 - 拉取代码:`git pull`
 - 后端:`kill $(pgrep -f "uvicorn app.main:app") 2>/dev/null; cd apps/backend && nohup venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 > uvicorn.log 2>&1 & disown`
 - 前端:`kill $(pgrep -f "vite") 2>/dev/null; cd apps/web && nohup npm run dev > vite.log 2>&1 & disown`

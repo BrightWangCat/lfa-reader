@@ -79,12 +79,12 @@ lfa-reader/
 │       ├── package.json
 │       └── vite.config.js
 │
-└── shared/                           # 跨端共享资源
+└── shared/                           # Cross-platform shared assets
     └── data/
-        ├── columbus_zips.json        # 邮编 GeoJSON,iOS 与 web 共用
-        ├── diseases.json             # 三种疾病元数据(id/label/category/species)
-        ├── breeds.json               # 猫/狗品种列表
-        └── age_options.json          # 猫/狗年龄枚举
+        ├── columbus_zips.json        # ZIP-code GeoJSON shared by iOS and web
+        ├── diseases.json             # Disease metadata (id/label/category/species)
+        ├── breeds.json               # Cat and dog breed lists
+        └── age_options.json          # Cat and dog age options
 ```
 
 ## Getting Started
@@ -181,10 +181,13 @@ The classification engine uses a deterministic two-stage approach (no ML model r
 
 ## Operations
 
-- Backup and restore scripts live in [`scripts/`](scripts/). The host runs
-  systemd timers that snapshot the SQLite database and `uploads/` hourly,
-  daily, and weekly into `/home/ubuntu/backups/lfa-reader/`. See
-  [`scripts/README.md`](scripts/README.md) for usage and recovery steps.
+- Backup and restore scripts live in [`scripts/`](scripts/). On AWS, run
+  `scripts/backup.sh backend-change` before `git pull`; it fetches upstream
+  and snapshots `lfa_reader.db` only when the incoming diff touches
+  `apps/backend/`. Scheduled hourly/daily/weekly backups are disabled.
+  `scripts/restore.sh` still creates a `pre-restore` database snapshot before
+  replacing the live database. See [`scripts/README.md`](scripts/README.md)
+  for usage and recovery steps.
 
 ## License
 

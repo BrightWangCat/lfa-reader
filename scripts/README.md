@@ -1,64 +1,67 @@
 # scripts/
 
-运维脚本。本目录入库,但备份产物本身落在 `/home/ubuntu/backups/lfa-reader/`,不入库。
+Operational scripts for the AWS host. The scripts are versioned in the repo,
+while snapshot output is stored outside the repo under
+`/home/ubuntu/backups/lfa-reader/`.
 
-## 数据备份
+## Backup Policy
 
-备份对象:`apps/backend/lfa_reader.db` 与 `apps/backend/uploads/`。
+Regular backups are now database-only and happen only when AWS is about to
+pull incoming changes that touch `apps/backend/`.
 
-### 自动备份(systemd timer)
+Use this command from the AWS repo root before `git pull`:
 
-宿主机已安装三个 timer,自动在 `/home/ubuntu/backups/lfa-reader/<tier>/<UTC时间戳>/` 落快照:
-
-| Tier | 触发 | 保留份数 |
-|------|------|---------|
-| hourly | 每小时整点 | 24 |
-| daily  | 每天 02:00 UTC | 14 |
-| weekly | 每周日 02:30 UTC | 8 |
-
-查看下一次触发与上一次执行:
-
-```
-systemctl list-timers 'lfa-backup-*' --no-pager
-journalctl -u 'lfa-backup@*' --since '24h ago' --no-pager
+```bash
+scripts/backup.sh backend-change
 ```
 
-unit 文件位于 `/etc/systemd/system/lfa-backup@.service` 与
-`/etc/systemd/system/lfa-backup-{hourly,daily,weekly}.timer`,均以 `ubuntu`
-身份运行;不在仓库内,机器重做时需要重新装一次。
+What it does:
 
-### 手工备份
+1. Resolves the tracked upstream branch and runs `git fetch`
+2. Checks whether the incoming diff touches `apps/backend/`
+3. Creates a SQLite hot backup only when backend changes are incoming
+4. Stores the snapshot under
+   `/home/ubuntu/backups/lfa-reader/backend-change/<timestamp>/`
 
-在新需求前/重大改动前/迁移脚本生效前,主动 snapshot 一份:
+Snapshot contents:
 
-```
-scripts/backup.sh manual
-```
+- `lfa_reader.db`
+- `metadata.json`
 
-手工快照不会被自动轮转,会一直留到手动清理。落在 `manual/` 子目录。
+Scheduled `hourly`, `daily`, and `weekly` backups are not part of the active
+workflow and should remain disabled on AWS.
 
-### 数据恢复
+## Restore Workflow
 
-```
+Restore a snapshot with:
+
+```bash
 scripts/restore.sh <tier>/<timestamp>
-# 例:
-scripts/restore.sh hourly/20260419-014023
-scripts/restore.sh manual/20260419-013934
 ```
 
-执行流程:
-1. 先把当前状态备份到 `pre-restore/`(自动保留 20 份,作为回滚网)
-2. 停掉 `uvicorn`(避免文件占用)
-3. 用 `cp` 替换 `lfa_reader.db`,如果快照里有 `uploads.tar.gz` 则解压覆盖 `uploads/`
-4. 提示手动重启 uvicorn(脚本不自动启,以便先确认数据再上线)
+Examples:
 
-直接运行 `scripts/restore.sh` 不带参数会列出所有可用快照。
+```bash
+scripts/restore.sh backend-change/20260419-021229
+scripts/restore.sh pre-restore/20260419-013949
+```
 
-## backup 与 restore 的注意事项
+The restore script:
 
-- 备份用 `sqlite3 .backup`(不是 `cp`)。这是 SQLite 的在线热备份命令,
-  不阻塞 uvicorn 的并发读写,产物是事务一致的。
-- `restore.sh` 必然停 uvicorn,所以会有几秒服务中断。
-- `pre-restore/` 是恢复前的当前状态,如果恢复结果不对可立刻
-  `restore.sh pre-restore/<最近时间戳>` 倒回去。
-- 备份不包含 `.env`(secret)、`venv/`、代码本身。代码恢复走 `git`。
+1. Creates a `pre-restore` database snapshot as a rollback safety net
+2. Stops `uvicorn`
+3. Replaces `lfa_reader.db`
+4. Restores `uploads/` only when the snapshot includes a legacy `uploads.tar.gz`
+5. Prints the manual backend restart command
+
+Run `scripts/restore.sh` without arguments to list all available snapshots.
+
+## Notes
+
+- `scripts/backup.sh` uses `sqlite3 .backup` instead of `cp`, so the database
+  snapshot stays transactionally consistent without blocking normal reads and
+  writes.
+- Current snapshots are database-only. Legacy snapshots may still include
+  `uploads.tar.gz`, and `scripts/restore.sh` remains compatible with them.
+- Backups do not include `.env`, `venv/`, or source code. Source code recovery
+  still goes through `git`.

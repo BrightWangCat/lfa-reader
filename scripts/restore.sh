@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# LFA Reader 数据恢复脚本
+# LFA Reader database restore script.
 #
-# 用法: restore.sh <snapshot-path | tier/timestamp>
-#   restore.sh hourly/20260420-020000
-#   restore.sh /home/ubuntu/backups/lfa-reader/manual/20260420-013000
+# Usage:
+#   restore.sh <snapshot-path | tier/timestamp>
+#   restore.sh backend-change/20260419-021229
+#   restore.sh /home/ubuntu/backups/lfa-reader/pre-restore/20260419-013949
 #
-# 行为:
-#   1. 校验目标快照存在且包含 lfa_reader.db
-#   2. 把当前状态自动备份到 pre-restore/<时间戳>(以防恢复出错可回滚)
-#   3. 停掉正在跑的 uvicorn(避免文件被占用)
-#   4. 替换 db,如有 uploads.tar.gz 则解压覆盖 uploads/
-#   5. 提示用户手动重启后端
-#
-# 不自动重启 uvicorn,以便用户在还原后先确认数据再启动。
+# Behavior:
+#   1. Verifies that the snapshot exists and contains lfa_reader.db
+#   2. Creates a pre-restore database snapshot as a rollback safety net
+#   3. Stops uvicorn to avoid file-handle conflicts
+#   4. Replaces lfa_reader.db
+#   5. Restores uploads/ only when the snapshot contains a legacy uploads.tar.gz
+#   6. Prints the manual restart command
 
 set -euo pipefail
 
@@ -21,57 +21,59 @@ BACKUP_ROOT="/home/ubuntu/backups/lfa-reader"
 DB_DEST="$REPO_ROOT/apps/backend/lfa_reader.db"
 UPLOADS_DEST="$REPO_ROOT/apps/backend/uploads"
 
-if [ $# -lt 1 ]; then
+list_snapshots() {
+  if [[ ! -d "$BACKUP_ROOT" ]]; then
+    return
+  fi
+
+  find "$BACKUP_ROOT" -mindepth 2 -maxdepth 2 -type d | sort | while read -r path; do
+    echo "  ${path#"$BACKUP_ROOT"/}" >&2
+  done
+}
+
+if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <snapshot-path | tier/timestamp>" >&2
   echo "Available snapshots:" >&2
-  for tier in hourly daily weekly manual pre-restore; do
-    if [ -d "$BACKUP_ROOT/$tier" ]; then
-      ls -1 "$BACKUP_ROOT/$tier" 2>/dev/null | sed "s|^|  $tier/|" >&2 || true
-    fi
-  done
+  list_snapshots
   exit 2
 fi
 
 ARG="$1"
-if [ -d "$ARG" ]; then
+if [[ -d "$ARG" ]]; then
   SNAPSHOT="$ARG"
-elif [ -d "$BACKUP_ROOT/$ARG" ]; then
+elif [[ -d "$BACKUP_ROOT/$ARG" ]]; then
   SNAPSHOT="$BACKUP_ROOT/$ARG"
 else
   echo "Snapshot not found: $ARG" >&2
   exit 1
 fi
 
-if [ ! -f "$SNAPSHOT/lfa_reader.db" ]; then
+if [[ ! -f "$SNAPSHOT/lfa_reader.db" ]]; then
   echo "Snapshot is missing lfa_reader.db: $SNAPSHOT" >&2
   exit 1
 fi
 
 echo "[restore] source: $SNAPSHOT"
-[ -f "$SNAPSHOT/metadata.json" ] && cat "$SNAPSHOT/metadata.json"
+[[ -f "$SNAPSHOT/metadata.json" ]] && cat "$SNAPSHOT/metadata.json"
 
-# 1. 先把当前状态备份到 pre-restore/,作为安全网
 echo "[restore] snapshotting current state to pre-restore/ ..."
 "$REPO_ROOT/scripts/backup.sh" pre-restore
 
-# 2. 停 uvicorn,防止数据库文件正被打开
 if pgrep -f "venv/bin/uvicorn" > /dev/null; then
   echo "[restore] stopping uvicorn ..."
   pkill -f "venv/bin/uvicorn" || true
   sleep 1
 fi
 
-# 3. 替换 db
 cp "$SNAPSHOT/lfa_reader.db" "$DB_DEST"
 echo "[restore] db replaced ($(stat -c%s "$DB_DEST") bytes)"
 
-# 4. 替换 uploads(若快照里有)
-if [ -f "$SNAPSHOT/uploads.tar.gz" ]; then
+if [[ -f "$SNAPSHOT/uploads.tar.gz" ]]; then
   rm -rf "$UPLOADS_DEST"
   tar -xzf "$SNAPSHOT/uploads.tar.gz" -C "$REPO_ROOT/apps/backend"
-  echo "[restore] uploads restored from tarball"
+  echo "[restore] uploads restored from legacy snapshot"
 else
-  echo "[restore] no uploads in snapshot, leaving uploads/ unchanged"
+  echo "[restore] snapshot has no uploads.tar.gz; leaving uploads/ unchanged"
 fi
 
 echo "[restore] done. Restart uvicorn manually:"
