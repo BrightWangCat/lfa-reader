@@ -44,7 +44,7 @@ export default function Login() {
           level={3}
           style={{ textAlign: "center", color: "#1a365d", marginBottom: 4 }}
         >
-          FeLV/FIV LFA Reader
+          LFA Reader
         </Title>
         <Text
           type="secondary"

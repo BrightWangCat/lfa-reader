@@ -48,7 +48,7 @@ export default function Register() {
           type="secondary"
           style={{ display: "block", textAlign: "center", marginBottom: 32 }}
         >
-          FeLV/FIV LFA Reader
+          LFA Reader
         </Text>
 
         <Form layout="vertical" onFinish={onFinish} autoComplete="off">
