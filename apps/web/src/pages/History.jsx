@@ -102,6 +102,19 @@ export default function History() {
       ellipsis: true,
     },
     {
+      title: "Disease",
+      dataIndex: "disease_category",
+      key: "disease",
+      width: 170,
+      responsive: ["md"],
+      render: (d) =>
+        d ? (
+          <Tag color="geekblue">{d}</Tag>
+        ) : (
+          <Typography.Text type="secondary">--</Typography.Text>
+        ),
+    },
+    {
       title: "Result",
       key: "result",
       width: 130,
@@ -186,7 +199,7 @@ export default function History() {
         <Title level={3} style={{ color: "#1a365d", margin: 0 }}>
           Test Results
         </Title>
-        <Link to="/upload">
+        <Link to="/">
           <Button type="primary" icon={<PlusOutlined />}>
             New Test
           </Button>
@@ -211,7 +224,7 @@ export default function History() {
         locale={{
           emptyText: (
             <Empty description="No test results yet.">
-              <Link to="/upload">
+              <Link to="/">
                 <Button type="primary">Start your first test</Button>
               </Link>
             </Empty>

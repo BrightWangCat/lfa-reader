@@ -7,11 +7,19 @@ from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 from app.database import get_db
 from app.models import User, Image, PatientInfo
-from app.schemas import ImageResponse, ImageListItem, PatientInfoResponse
+from app.schemas import (
+    ImageResponse,
+    ImageListItem,
+    PatientInfoResponse,
+    DISEASE_BY_ID,
+    DISEASE_LABELS,
+    VALID_SEX,
+)
 from app.auth import get_current_user
 from app.config import UPLOAD_DIR
 from app.services.cv_inference import cancel_classification
 from app.services.image_preprocessor import preprocess_cassette, PreprocessingError
+from app.services.warnings import compute_warnings, encode_warnings
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
@@ -31,17 +39,46 @@ def validate_image(file: UploadFile) -> None:
 @router.post("/single", response_model=ImageResponse, status_code=status.HTTP_201_CREATED)
 async def upload_single(
     file: UploadFile = File(...),
+    # disease_category is always required: it identifies which of the three
+    # workflows was used, and species/breed validation keys off it.
+    disease_category: str = Form(...),
     share_info: bool = Form(False),
-    species: Optional[str] = Form(None),
     age: Optional[str] = Form(None),
     sex: Optional[str] = Form(None),
     breed: Optional[str] = Form(None),
-    zip_code: Optional[str] = Form(None),
+    area_code: Optional[str] = Form(None),
+    preventive_treatment: Optional[bool] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Upload a single image with optional patient info."""
+    """Upload a single image and attach the disease workflow context."""
     validate_image(file)
+
+    if disease_category not in DISEASE_LABELS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"disease_category must be one of: {sorted(DISEASE_LABELS)}",
+        )
+    # Look up the workflow metadata (species, preventive_treatment requirement)
+    # via label because the form field uses the user-facing string.
+    disease = next(d for d in DISEASE_BY_ID.values() if d["label"] == disease_category)
+    species = disease["species"]
+
+    if share_info and sex is not None and sex not in VALID_SEX:
+        raise HTTPException(
+            status_code=400,
+            detail=f"sex must be one of: {sorted(VALID_SEX)}",
+        )
+
+    # Only Tick Borne collects preventive_treatment; for other flows the answer
+    # is irrelevant so we drop anything that leaked through the form.
+    if not disease["needs_preventive_treatment"]:
+        preventive_treatment = None
+    elif share_info and preventive_treatment is None:
+        raise HTTPException(
+            status_code=400,
+            detail="preventive_treatment is required for the Tick Borne workflow",
+        )
 
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
@@ -93,22 +130,23 @@ async def upload_single(
     image.preprocessed_filename = preprocessed_name
     image.preprocessed_path = preprocessed_path
     image.is_preprocessed = True
+    # Warnings are computed from the chosen workflow and the answers given;
+    # they are stored even when share_info is False so we know the advisory
+    # fired, even though no patient row gets created in that case.
+    image.warnings = encode_warnings(
+        compute_warnings(disease_category, species, age if share_info else None)
+    )
 
     if share_info:
-        if sex is not None and sex not in ("M", "F", "CM", "SF"):
-            db.rollback()
-            raise HTTPException(
-                status_code=400,
-                detail="sex must be one of: M, F, CM, SF",
-            )
-
         patient = PatientInfo(
             image_id=image.id,
+            disease_category=disease_category,
             species=species,
             age=age,
             sex=sex,
             breed=breed,
-            zip_code=zip_code,
+            area_code=area_code,
+            preventive_treatment=preventive_treatment,
         )
         db.add(patient)
 
@@ -123,7 +161,7 @@ def list_images(
     db: Session = Depends(get_db),
 ):
     """List images. Admin sees everyone's; regular users see only their own."""
-    query = db.query(Image)
+    query = db.query(Image).options(joinedload(Image.patient_info))
     if current_user.role != "admin":
         query = query.filter(Image.user_id == current_user.id)
     images = query.order_by(Image.created_at.desc()).all()
@@ -142,6 +180,9 @@ def list_images(
     for img in images:
         item = ImageListItem.model_validate(img)
         item.username = username_map.get(img.user_id, "Unknown")
+        item.disease_category = (
+            img.patient_info.disease_category if img.patient_info else None
+        )
         result.append(item)
     return result
 

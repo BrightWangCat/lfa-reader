@@ -33,16 +33,26 @@ import {
   correctReading,
   buildImageFileUrl,
 } from "../services/api";
+import { resolveWarning } from "../locales/warnings";
 
 const { useBreakpoint } = Grid;
 const { Title, Text } = Typography;
 
+const formatPreventive = (v) =>
+  v === true ? "Yes" : v === false ? "No" : null;
+
 const PATIENT_FIELDS = [
+  { key: "disease_category", label: "Disease" },
   { key: "species", label: "Species" },
   { key: "age", label: "Age" },
   { key: "sex", label: "Sex" },
   { key: "breed", label: "Breed" },
-  { key: "zip_code", label: "Zip Code" },
+  {
+    key: "preventive_treatment",
+    label: "Preventive Treatment (6mo)",
+    format: formatPreventive,
+  },
+  { key: "area_code", label: "Area Code" },
 ];
 
 const CATEGORIES = [
@@ -205,8 +215,8 @@ export default function Results() {
           showIcon
           style={{ maxWidth: 400, margin: "0 auto 16px" }}
         />
-        <Link to="/upload">
-          <Button type="primary">Go to Upload</Button>
+        <Link to="/">
+          <Button type="primary">Go to Home</Button>
         </Link>
       </div>
     );
@@ -268,7 +278,7 @@ export default function Results() {
               History
             </Button>
           </Link>
-          <Link to="/upload">
+          <Link to="/">
             <Button
               icon={<PlusOutlined />}
               type="primary"
@@ -295,6 +305,22 @@ export default function Results() {
           type="error"
           message={`Classification failed: ${classifyError}`}
           showIcon
+          style={{ marginBottom: 24 }}
+        />
+      )}
+
+      {image.warnings && image.warnings.length > 0 && (
+        <Alert
+          type="error"
+          showIcon
+          message="Advisory"
+          description={
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {image.warnings.map((key) => (
+                <li key={key}>{resolveWarning(key)}</li>
+              ))}
+            </ul>
+          }
           style={{ marginBottom: 24 }}
         />
       )}
@@ -381,8 +407,11 @@ export default function Results() {
                 label: <Text strong style={{ fontSize: 13 }}>Patient Info</Text>,
                 children: (
                   <div>
-                    {PATIENT_FIELDS.map(({ key, label }) =>
-                      image.patient_info[key] ? (
+                    {PATIENT_FIELDS.map(({ key, label, format }) => {
+                      const raw = image.patient_info[key];
+                      const value = format ? format(raw) : raw;
+                      if (value === null || value === undefined || value === "") return null;
+                      return (
                         <div
                           key={key}
                           style={{
@@ -393,10 +422,10 @@ export default function Results() {
                           }}
                         >
                           <Text type="secondary">{label}:</Text>
-                          <Text strong>{image.patient_info[key]}</Text>
+                          <Text strong>{value}</Text>
                         </div>
-                      ) : null
-                    )}
+                      );
+                    })}
                   </div>
                 ),
               },

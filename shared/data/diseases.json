@@ -1,0 +1,23 @@
+[
+  {
+    "id": "fiv_felv",
+    "label": "FIV/FeLV",
+    "category": "Infectious",
+    "species": "cat",
+    "needs_preventive_treatment": false
+  },
+  {
+    "id": "tick_borne",
+    "label": "Tick Borne",
+    "category": "Infectious",
+    "species": "dog",
+    "needs_preventive_treatment": true
+  },
+  {
+    "id": "canine_urothelial_carcinoma",
+    "label": "Canine Urothelial Carcinoma",
+    "category": "Cancer",
+    "species": "dog",
+    "needs_preventive_treatment": false
+  }
+]

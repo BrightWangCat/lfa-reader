@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Layout, Menu, Dropdown, Typography, Grid, Button, Drawer } from "antd";
 import {
-  PlusCircleOutlined,
+  HomeOutlined,
   HistoryOutlined,
   BarChartOutlined,
   UserOutlined,
@@ -18,7 +18,8 @@ const { useBreakpoint } = Grid;
 
 // Map pathname to menu key
 const pathToKey = {
-  "/upload": "upload",
+  "/": "home",
+  "/upload": "home",
   "/history": "history",
   "/results": "results",
   "/analytics": "analytics",
@@ -46,9 +47,9 @@ export default function Navbar() {
 
   const menuItems = [
     {
-      key: "upload",
-      icon: <PlusCircleOutlined />,
-      label: <Link to="/upload" onClick={() => setDrawerOpen(false)}>New Test</Link>,
+      key: "home",
+      icon: <HomeOutlined />,
+      label: <Link to="/" onClick={() => setDrawerOpen(false)}>New Test</Link>,
     },
     {
       key: "history",
@@ -102,7 +103,7 @@ export default function Navbar() {
         )}
 
         <Link
-          to="/upload"
+          to="/"
           style={{
             color: "#fff",
             fontSize: isMobile ? "0.95rem" : "1.125rem",
@@ -112,7 +113,7 @@ export default function Navbar() {
             textDecoration: "none",
           }}
         >
-          {isMobile ? "LFA Reader" : "FeLV/FIV LFA Reader"}
+          LFA Reader
         </Link>
 
         {!isMobile && (

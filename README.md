@@ -1,6 +1,12 @@
-# FeLV/FIV LFA Reader
+# LFA Reader
 
-An automated reading and classification system for **FeLV/FIV lateral flow assay (LFA)** test strips used in veterinary diagnostics. Upload photos of test cassettes and get computer-vision-based classification results — available as both a **web application** and a **native iOS app**.
+An automated reading and classification system for **veterinary lateral flow assay (LFA)** test strips. The reader covers three disease workflows:
+
+- **FIV/FeLV** (Infectious, cats)
+- **Tick Borne** (Infectious, dogs)
+- **Canine Urothelial Carcinoma** (Cancer, dogs)
+
+Each workflow pairs an OpenCV classification pipeline with disease-specific patient metadata. Available as both a **web application** and a **native iOS app**.
 
 **Live Demo**: https://16.59.11.102:8080 (self-signed certificate; accept the browser warning on first visit)
 
@@ -13,9 +19,11 @@ An automated reading and classification system for **FeLV/FIV lateral flow assay
 | OpenCV classification (LAB color-space analysis) | ✅ | ✅ |
 | Automatic image preprocessing | ✅ | ✅ |
 | Manual correction override | ✅ | ✅ |
-| Patient metadata (species, age, sex, breed, zip code) | ✅ | ✅ |
-| Statistics dashboard | ✅ | ✅ |
-| Zip code geographic heatmap | ✅ | ✅ |
+| Disease workflow selection (FIV/FeLV, Tick Borne, Canine Urothelial Carcinoma) | ✅ | — |
+| Patient metadata (age, sex, breed, area code; preventive treatment for Tick Borne) | ✅ | ✅ |
+| Backend-generated advisories (e.g. false-negative warning for young cats) | ✅ | ✅ |
+| Statistics dashboard (per-disease filter) | ✅ | ✅ |
+| Area code geographic heatmap | ✅ | ✅ |
 | Admin user management | ✅ | — |
 
 ### Classification Categories
@@ -73,7 +81,10 @@ FeLV-FIV-AI-website/
 │
 └── shared/                           # 跨端共享资源
     └── data/
-        └── columbus_zips.json        # 邮编 GeoJSON,iOS 与 web 共用
+        ├── columbus_zips.json        # 邮编 GeoJSON,iOS 与 web 共用
+        ├── diseases.json             # 三种疾病元数据(id/label/category/species)
+        ├── breeds.json               # 猫/狗品种列表
+        └── age_options.json          # 猫/狗年龄枚举
 ```
 
 ## Getting Started
@@ -81,7 +92,7 @@ FeLV-FIV-AI-website/
 ### Prerequisites
 
 - Python 3.12+
-- Node.js 18+
+- Node.js 20.19+ (Vite 7 requirement)
 - Xcode 15+ (for iOS development, macOS only)
 
 ### Backend
@@ -129,7 +140,7 @@ xcodebuild -project apps/ios/LFAReader.xcodeproj -scheme LFAReader \
 |----------|-------------|
 | `POST /api/users/register` | Register new user |
 | `POST /api/users/login` | Login (returns JWT) |
-| `POST /api/upload/single` | Upload a single image with optional patient info |
+| `POST /api/upload/single` | Upload a single image; requires `disease_category`, optionally patient info |
 | `GET /api/upload/images` | List own images (admin sees all) |
 | `GET /api/upload/image/{id}` | Image detail with patient info |
 | `DELETE /api/upload/image/{id}` | Delete an image and its files |
@@ -138,7 +149,7 @@ xcodebuild -project apps/ios/LFAReader.xcodeproj -scheme LFAReader \
 | `GET /api/readings/image/{id}/status` | Poll classification status |
 | `POST /api/readings/image/{id}/cancel` | Cancel a running classification |
 | `PUT /api/readings/image/{id}/correct` | Manual correction |
-| `GET /api/stats/global` | Global statistics |
+| `GET /api/stats/global` | Global statistics; optional `?disease_category=<label>` filter |
 
 Full API documentation is available at `/docs` (Swagger UI) when the backend is running.
 

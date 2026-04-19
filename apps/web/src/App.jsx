@@ -5,6 +5,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Home from "./pages/Home";
 import UploadPage from "./pages/Upload";
 import Results from "./pages/Results";
 import History from "./pages/History";
@@ -36,6 +37,14 @@ function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Layout><Home /></Layout>
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/upload"
                 element={
@@ -84,7 +93,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="*" element={<Navigate to="/login" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </AuthProvider>
         </BrowserRouter>

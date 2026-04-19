@@ -181,7 +181,47 @@ def _migrate_drop_batch_model(eng):
 _migrate_drop_batch_model(engine)
 
 
-app = FastAPI(title="FeLV/FIV LFA Reader", version="0.1.0")
+# Adds the disease-workflow columns introduced with the three-disease expansion
+# (FIV/FeLV, Tick Borne, Canine Urothelial Carcinoma). Idempotent:
+#   - images.warnings: JSON string of warning keys computed server-side.
+#   - patient_info.disease_category: required identifier of the chosen workflow.
+#   - patient_info.preventive_treatment: only populated by the Tick Borne path.
+#   - patient_info.zip_code -> patient_info.area_code: terminology alignment.
+def _migrate_add_disease_fields(eng):
+    insp = sa_inspect(eng)
+    table_names = set(insp.get_table_names())
+
+    if "images" in table_names:
+        images_cols = {c["name"] for c in insp.get_columns("images")}
+        with eng.begin() as conn:
+            if "warnings" not in images_cols:
+                conn.execute(text("ALTER TABLE images ADD COLUMN warnings TEXT"))
+
+    if "patient_info" in table_names:
+        patient_cols = {c["name"] for c in insp.get_columns("patient_info")}
+        with eng.begin() as conn:
+            if "disease_category" not in patient_cols:
+                conn.execute(text(
+                    "ALTER TABLE patient_info ADD COLUMN disease_category TEXT"
+                ))
+            if "preventive_treatment" not in patient_cols:
+                conn.execute(text(
+                    "ALTER TABLE patient_info ADD COLUMN preventive_treatment INTEGER"
+                ))
+            # Rename zip_code -> area_code; SQLite 3.25+ supports column rename.
+            patient_cols = {
+                c["name"] for c in sa_inspect(eng).get_columns("patient_info")
+            }
+            if "zip_code" in patient_cols and "area_code" not in patient_cols:
+                conn.execute(text(
+                    "ALTER TABLE patient_info RENAME COLUMN zip_code TO area_code"
+                ))
+
+
+_migrate_add_disease_fields(engine)
+
+
+app = FastAPI(title="LFA Reader", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,

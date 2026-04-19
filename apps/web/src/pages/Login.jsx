@@ -18,7 +18,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(values.username, values.password);
-      navigate("/upload");
+      navigate("/");
     } catch (err) {
       message.error(err.response?.data?.detail || "Login failed");
     } finally {

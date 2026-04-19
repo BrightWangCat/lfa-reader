@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, useLocation, useSearchParams, Navigate } from "react-router-dom";
 import {
   Typography,
   Upload,
@@ -12,6 +12,7 @@ import {
   Input,
   Result,
   Button,
+  Tag,
   App,
 } from "antd";
 import {
@@ -19,6 +20,9 @@ import {
   CameraOutlined,
 } from "@ant-design/icons";
 import { uploadSingle } from "../services/api";
+import diseases from "@shared/data/diseases.json";
+import breeds from "@shared/data/breeds.json";
+import ageOptions from "@shared/data/age_options.json";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -26,10 +30,21 @@ const { Dragger } = Upload;
 const ALLOWED_TYPES = ["image/jpeg", "image/png"];
 const MAX_SIZE = 20 * 1024 * 1024; // 20MB
 
+const SPECIES_LABEL = { cat: "Cats", dog: "Dogs" };
+
 export default function UploadPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { message } = App.useApp();
+
+  // The disease id comes from the Home page; without it the upload page has
+  // no workflow context, so we bounce the user back rather than guess.
+  const diseaseId = searchParams.get("disease");
+  const disease = useMemo(
+    () => diseases.find((d) => d.id === diseaseId),
+    [diseaseId]
+  );
 
   const [step, setStep] = useState(0);
 
@@ -37,13 +52,13 @@ export default function UploadPage() {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
 
-  // Step 2: patient info
+  // Step 2: patient info. Species is locked by the chosen disease.
   const [shareInfo, setShareInfo] = useState(null);
-  const [species, setSpecies] = useState("");
   const [age, setAge] = useState("");
   const [sex, setSex] = useState("");
   const [breed, setBreed] = useState("");
-  const [zipCode, setZipCode] = useState("");
+  const [areaCode, setAreaCode] = useState("");
+  const [preventiveTreatment, setPreventiveTreatment] = useState(null);
 
   // Submission
   const [uploading, setUploading] = useState(false);
@@ -51,7 +66,7 @@ export default function UploadPage() {
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
 
-  // 从相机页面返回时,读取 sessionStorage 中的拍摄图片
+  // Handle return from the camera capture page.
   useEffect(() => {
     if (location.state?.fromCamera) {
       const dataUrl = sessionStorage.getItem("capturedImage");
@@ -72,6 +87,14 @@ export default function UploadPage() {
     }
   }, [location.state]);
 
+  if (!disease) {
+    return <Navigate to="/" replace />;
+  }
+
+  const speciesLabel = SPECIES_LABEL[disease.species];
+  const breedList = breeds[disease.species] || [];
+  const ageList = ageOptions[disease.species] || [];
+
   const selectFile = (f) => {
     if (!ALLOWED_TYPES.includes(f.type)) {
       message.error(`${f.name}: unsupported format. Only JPG/PNG allowed.`);
@@ -88,20 +111,35 @@ export default function UploadPage() {
 
   const handleSubmit = async () => {
     if (!file) return;
+
+    // Tick Borne requires an explicit Yes/No on preventive treatment when the
+    // user is sharing info; block the submit rather than silently drop it.
+    if (
+      shareInfo &&
+      disease.needs_preventive_treatment &&
+      preventiveTreatment === null
+    ) {
+      setError("Please answer the preventive treatment question.");
+      return;
+    }
+
     setError("");
     setUploading(true);
     setProgress(0);
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("disease_category", disease.label);
     formData.append("share_info", shareInfo ? "true" : "false");
 
     if (shareInfo) {
-      if (species) formData.append("species", species);
       if (age) formData.append("age", age);
       if (sex) formData.append("sex", sex);
       if (breed) formData.append("breed", breed);
-      if (zipCode) formData.append("zip_code", zipCode);
+      if (areaCode) formData.append("area_code", areaCode);
+      if (disease.needs_preventive_treatment && preventiveTreatment !== null) {
+        formData.append("preventive_treatment", preventiveTreatment ? "true" : "false");
+      }
     }
 
     try {
@@ -147,14 +185,20 @@ export default function UploadPage() {
   return (
     <div style={{ maxWidth: 720, margin: "0 auto" }}>
       <Title level={3} style={{ color: "#1a365d", marginBottom: 8 }}>
-        New Test
+        {disease.label}
       </Title>
+      <div style={{ marginBottom: 16 }}>
+        <Tag color={disease.species === "cat" ? "magenta" : "blue"}>
+          {speciesLabel}
+        </Tag>
+        <Tag>{disease.category}</Tag>
+      </div>
       <Text
         type="secondary"
         style={{ display: "block", marginBottom: 24, lineHeight: 1.5 }}
       >
-        Upload a single FeLV/FIV lateral flow assay cassette image.
-        Supported formats: JPG, PNG. Maximum 20MB.
+        Upload a single lateral flow assay cassette image for the {disease.label}
+        {" "}workflow. Supported formats: JPG, PNG. Maximum 20MB.
       </Text>
 
       <Steps
@@ -244,7 +288,8 @@ export default function UploadPage() {
             </div>
           )}
 
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
+            <Button size="large" onClick={() => navigate("/")}>Back to Home</Button>
             <Button
               type="primary"
               size="large"
@@ -279,26 +324,13 @@ export default function UploadPage() {
 
           {shareInfo && (
             <Form layout="vertical" style={{ marginBottom: 8 }}>
-              <Form.Item label="Species">
+              <Form.Item label="Age">
                 <Select
-                  value={species || undefined}
-                  onChange={setSpecies}
-                  placeholder="Select species"
-                  options={[
-                    { value: "Dog", label: "Dog" },
-                    { value: "Cat", label: "Cat" },
-                  ]}
+                  value={age || undefined}
+                  onChange={setAge}
+                  placeholder="Select age"
+                  options={ageList.map((a) => ({ value: a, label: a }))}
                   allowClear
-                />
-              </Form.Item>
-              <Form.Item label="Age (years)">
-                <Input
-                  type="number"
-                  min={0}
-                  value={age}
-                  onChange={(e) => setAge(e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="e.g. 3"
-                  suffix="years"
                 />
               </Form.Item>
               <Form.Item label="Sex">
@@ -310,23 +342,39 @@ export default function UploadPage() {
                     { value: "M", label: "M" },
                     { value: "F", label: "F" },
                     { value: "CM", label: "CM" },
-                    { value: "SF", label: "SF" },
+                    { value: "CF", label: "CF" },
                   ]}
                   allowClear
                 />
               </Form.Item>
               <Form.Item label="Breed">
-                <Input
-                  value={breed}
-                  onChange={(e) => setBreed(e.target.value)}
-                  placeholder="Breed"
+                <Select
+                  value={breed || undefined}
+                  onChange={setBreed}
+                  placeholder="Select breed"
+                  options={breedList.map((b) => ({ value: b, label: b }))}
+                  showSearch
+                  allowClear
                 />
               </Form.Item>
-              <Form.Item label="Zip Code">
+              {disease.needs_preventive_treatment && (
+                <Form.Item label="Was there a preventive treatment in the last 6 months?">
+                  <Radio.Group
+                    value={preventiveTreatment}
+                    onChange={(e) => setPreventiveTreatment(e.target.value)}
+                    optionType="button"
+                    buttonStyle="solid"
+                  >
+                    <Radio.Button value={true}>Yes</Radio.Button>
+                    <Radio.Button value={false}>No</Radio.Button>
+                  </Radio.Group>
+                </Form.Item>
+              )}
+              <Form.Item label="Area Code">
                 <Input
-                  value={zipCode}
-                  onChange={(e) => setZipCode(e.target.value)}
-                  placeholder="Zip code"
+                  value={areaCode}
+                  onChange={(e) => setAreaCode(e.target.value)}
+                  placeholder="Area code"
                 />
               </Form.Item>
             </Form>

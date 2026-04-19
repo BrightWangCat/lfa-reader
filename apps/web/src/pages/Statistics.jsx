@@ -1,12 +1,23 @@
 import { useState, useEffect, useMemo } from "react";
-import { Row, Col, Card, Statistic, Typography, Spin, Alert, Empty } from "antd";
+import {
+  Row,
+  Col,
+  Card,
+  Statistic,
+  Typography,
+  Spin,
+  Alert,
+  Empty,
+  Select,
+  Space,
+} from "antd";
 import { Pie } from "@ant-design/charts";
 import api from "../services/api";
 import ZipCodeMap from "../components/ZipCodeMap";
+import diseases from "@shared/data/diseases.json";
 
 const { Title, Text } = Typography;
 
-// 4 种有效分类及其对应颜色
 const CATEGORIES = ["Negative", "Positive L", "Positive I", "Positive L+I"];
 const CATEGORY_COLORS = {
   "Negative": "#38a169",
@@ -15,34 +26,44 @@ const CATEGORY_COLORS = {
   "Positive L+I": "#805ad5",
 };
 
-// 5 个维度的显示名称
+// Dimensions surfaced in the per-dimension pie grid. Keep in sync with
+// PATIENT_DIMENSIONS in apps/backend/app/routers/stats.py.
 const DIMENSION_LABELS = {
+  disease_category: "Disease Category",
   species: "Species",
   age: "Age",
   sex: "Sex",
   breed: "Breed",
-  zip_code: "Zip Code",
+  area_code: "Area Code",
+  preventive_treatment: "Preventive Treatment (6mo)",
 };
 
-// 饼图配色方案，用于区分同一维度下不同值
 const PIE_PALETTE = [
   "#2b6cb0", "#38a169", "#e53e3e", "#dd6b20", "#805ad5",
   "#d69e2e", "#319795", "#b83280", "#5a67d8", "#ed8936",
   "#4fd1c5", "#fc8181", "#90cdf4", "#fbd38d", "#c6f6d5",
 ];
 
+const ALL_DISEASES = "__all__";
+
 export default function Statistics() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [filter, setFilter] = useState(ALL_DISEASES);
 
   useEffect(() => {
-    fetchGlobalStats();
-  }, []);
+    fetchGlobalStats(filter);
+  }, [filter]);
 
-  const fetchGlobalStats = async () => {
+  const fetchGlobalStats = async (diseaseFilter) => {
+    setLoading(true);
     try {
-      const res = await api.get("/api/stats/global");
+      const params = {};
+      if (diseaseFilter !== ALL_DISEASES) {
+        params.disease_category = diseaseFilter;
+      }
+      const res = await api.get("/api/stats/global", { params });
       setData(res.data);
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to load statistics");
@@ -51,13 +72,15 @@ export default function Statistics() {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ textAlign: "center", padding: "4rem" }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
+  // Hide the disease_category pie when the user already narrowed to one
+  // workflow; otherwise the card would render a single slice with no signal.
+  const visibleDimensions = useMemo(() => {
+    const entries = Object.entries(DIMENSION_LABELS);
+    if (filter !== ALL_DISEASES) {
+      return entries.filter(([key]) => key !== "disease_category");
+    }
+    return entries;
+  }, [filter]);
 
   if (error) {
     return (
@@ -72,20 +95,8 @@ export default function Statistics() {
     );
   }
 
-  if (!data || data.total === 0) {
-    return (
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <Title level={3} style={{ color: "#1a365d", marginBottom: 24 }}>
-          Global Test Statistics
-        </Title>
-        <Empty description="No test results with patient information available." />
-      </div>
-    );
-  }
-
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-      {/* Page Header */}
       <Title level={3} style={{ color: "#1a365d", marginBottom: 8 }}>
         Global Test Statistics
       </Title>
@@ -93,48 +104,69 @@ export default function Statistics() {
         Aggregated results from all users' tests with patient information
       </Text>
 
-      {/* Overview Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
-        <Col xs={12} sm={8} md={4}>
-          <Card>
-            <Statistic title="Total Samples" value={data.total} />
-          </Card>
-        </Col>
-        {CATEGORIES.map((cat) => (
-          <Col xs={12} sm={8} md={5} key={cat}>
-            <Card>
-              <Statistic
-                title={cat}
-                value={data.category_totals[cat] || 0}
-                valueStyle={{ color: CATEGORY_COLORS[cat] }}
-              />
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
-      {/* Per-dimension sections: each with pie charts */}
-      {Object.entries(DIMENSION_LABELS).map(([dimKey, dimLabel]) => (
-        <DimensionSection
-          key={dimKey}
-          dimensionKey={dimKey}
-          dimensionLabel={dimLabel}
-          dimensionData={data.dimensions[dimKey]}
+      <Space style={{ marginBottom: 24 }} wrap>
+        <Text strong>Disease workflow:</Text>
+        <Select
+          value={filter}
+          onChange={setFilter}
+          style={{ minWidth: 260 }}
+          options={[
+            { value: ALL_DISEASES, label: "All diseases" },
+            ...diseases.map((d) => ({ value: d.label, label: d.label })),
+          ]}
         />
-      ))}
+      </Space>
 
-      {/* Zip Code Map */}
-      <ZipCodeMapSection zipDimensionData={data.dimensions.zip_code} />
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "4rem" }}>
+          <Spin size="large" />
+        </div>
+      ) : !data || data.total === 0 ? (
+        <Empty description="No test results with patient information available for this selection." />
+      ) : (
+        <>
+          <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
+            <Col xs={12} sm={8} md={4}>
+              <Card>
+                <Statistic title="Total Samples" value={data.total} />
+              </Card>
+            </Col>
+            {CATEGORIES.map((cat) => (
+              <Col xs={12} sm={8} md={5} key={cat}>
+                <Card>
+                  <Statistic
+                    title={cat}
+                    value={data.category_totals[cat] || 0}
+                    valueStyle={{ color: CATEGORY_COLORS[cat] }}
+                  />
+                </Card>
+              </Col>
+            ))}
+          </Row>
+
+          {visibleDimensions.map(([dimKey, dimLabel]) => (
+            <DimensionSection
+              key={dimKey}
+              dimensionKey={dimKey}
+              dimensionLabel={dimLabel}
+              dimensionData={data.dimensions[dimKey]}
+            />
+          ))}
+
+          <ZipCodeMapSection zipDimensionData={data.dimensions.area_code} />
+        </>
+      )}
     </div>
   );
 }
 
-// Map section: aggregate zip_code data into { zip: { "Positive L": n, ... } } format
+// Aggregates the area_code dimension into the shape ZipCodeMap consumes.
+// The backend renamed zip_code -> area_code, but the Columbus map GeoJSON
+// is keyed by USPS zip so the variable name here stays 'zip'.
 function ZipCodeMapSection({ zipDimensionData }) {
   const zipData = useMemo(() => {
     if (!zipDimensionData) return {};
     const result = {};
-    // zipDimensionData format: { "Positive L": { "43215": 2, ... }, "Positive I": {...}, ... }
     for (const cat of ["Positive L", "Positive I", "Positive L+I"]) {
       const dist = zipDimensionData[cat] || {};
       for (const [zip, count] of Object.entries(dist)) {
@@ -146,6 +178,10 @@ function ZipCodeMapSection({ zipDimensionData }) {
     }
     return result;
   }, [zipDimensionData]);
+
+  if (Object.keys(zipData).length === 0) {
+    return null;
+  }
 
   return (
     <div style={{ marginBottom: 32 }}>
@@ -160,14 +196,11 @@ function ZipCodeMapSection({ zipDimensionData }) {
   );
 }
 
-// Pie charts only show positive categories (exclude Negative)
 const PIE_CATEGORIES = CATEGORIES.filter((cat) => cat !== "Negative");
 
-// A section for one dimension, containing 3 pie charts
 function DimensionSection({ dimensionKey, dimensionLabel, dimensionData }) {
   if (!dimensionData) return null;
 
-  // Check if this dimension has any data at all
   const hasData = PIE_CATEGORIES.some(
     (cat) => dimensionData[cat] && Object.keys(dimensionData[cat]).length > 0
   );
@@ -227,7 +260,6 @@ function DimensionSection({ dimensionKey, dimensionLabel, dimensionData }) {
   );
 }
 
-// Single pie chart for one category within one dimension
 function CategoryPieChart({ entries, total }) {
   const chartData = entries.map(([label, count]) => ({
     type: label,
@@ -245,7 +277,6 @@ function CategoryPieChart({ entries, total }) {
     label: {
       text: (d) => {
         const pct = ((d.value / total) * 100).toFixed(1);
-        // Only show label if percentage is large enough to be readable
         return pct >= 5 ? `${pct}%` : "";
       },
       style: { fontSize: 11, fontWeight: 500 },
@@ -267,7 +298,6 @@ function CategoryPieChart({ entries, total }) {
         },
       ],
     },
-    // Disable animation for faster rendering
     animate: false,
   };
 
