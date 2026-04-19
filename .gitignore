@@ -25,9 +25,6 @@ uploads/
 node_modules/
 dist/
 
-# Project management
-tasks/
-
 # IDE
 .vscode/
 .idea/
