@@ -94,6 +94,7 @@ lfa-reader/
 - 严禁手工编辑 `apps/ios/LFAReader.xcodeproj/project.pbxproj` 的资源引用、Build Phase、Target 配置;此类改动必须在 Xcode GUI 完成。
 
 ### Git 提交
-- 完成主要功能后立即 `git add` 并 `git commit`,commit message 由 Claude 撰写,简洁聚焦"为什么"。
-- **commit 完成即为本次工作终点**。之后的任何 git 动作(`push`、`push --force`、tag、PR、release、deploy、issue 更新、外部通知)一律由用户亲自完成,严禁代劳;commit 后只汇报"已 commit XXXXXXX"等待用户接手。
-- 提交前确认 `.gitignore` 已排除敏感文件:数据库、.env、上传目录、凭证。
+- **严禁 Claude 执行任何 git 提交动作**。`git add`、`git commit`、`git commit --amend`、`git push`、`git push --force`、tag、PR、release、deploy、issue 更新、外部通知等一律由用户亲自完成。
+- Claude 完成代码改动后只汇报改了什么、为什么、涉及哪些文件,用户自行决定是否提交及如何撰写 commit message。
+- 用户如显式要求 Claude 代为 commit,当次按用户指令执行,但不得因此放宽本条默认规则。
+- 维护 `.gitignore` 仍是 Claude 的职责:新增敏感文件(数据库、.env、上传目录、凭证)时及时补齐忽略规则,提醒用户提交前复核。
