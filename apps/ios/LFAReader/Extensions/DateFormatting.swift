@@ -13,6 +13,22 @@ private enum EasternDateFormatting {
         return formatter
     }()
 
+    static let naiveUTCWithFractionalSeconds: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+        return formatter
+    }()
+
+    static let naiveUTC: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        return formatter
+    }()
+
     static let displayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -30,6 +46,14 @@ extension String {
         }
 
         if let date = EasternDateFormatting.iso8601.date(from: self) {
+            return "\(EasternDateFormatting.displayFormatter.string(from: date)) ET"
+        }
+
+        if let date = EasternDateFormatting.naiveUTCWithFractionalSeconds.date(from: self) {
+            return "\(EasternDateFormatting.displayFormatter.string(from: date)) ET"
+        }
+
+        if let date = EasternDateFormatting.naiveUTC.date(from: self) {
             return "\(EasternDateFormatting.displayFormatter.string(from: date)) ET"
         }
 
