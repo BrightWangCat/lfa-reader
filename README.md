@@ -48,7 +48,7 @@ Each workflow pairs an OpenCV classification pipeline with disease-specific pati
 ## Project Structure
 
 ```
-FeLV-FIV-AI-website/
+lfa-reader/
 ├── apps/
 │   ├── ios/                          # iOS native app (SwiftUI)
 │   │   ├── LFAReader.xcodeproj/
