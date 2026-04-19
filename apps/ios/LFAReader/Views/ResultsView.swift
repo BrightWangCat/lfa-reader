@@ -112,11 +112,6 @@ struct ResultsView: View {
                 }
 
                 Spacer(minLength: 0)
-
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 4)
             }
 
             HStack(spacing: 10) {
