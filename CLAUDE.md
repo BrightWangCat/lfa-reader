@@ -7,14 +7,27 @@
 ```
 lfa-reader/
 ├── apps/
-│   ├── backend/      FastAPI + SQLAlchemy + OpenCV,Python 3.12
-│   ├── web/          React 19 + Vite + Ant Design
-│   └── ios/          SwiftUI,iOS 17+,Xcode 工程位于 apps/ios/LFAReader.xcodeproj
+│   ├── backend/      FastAPI + SQLAlchemy + OpenCV,Python 3.12,在 AWS Linux 开发与运行
+│   ├── web/          React 19 + Vite + Ant Design,在 AWS Linux 开发
+│   └── ios/          SwiftUI,iOS 17+,Xcode 工程 apps/ios/LFAReader.xcodeproj,仅在 macOS 开发
 ├── shared/data/      跨端共享资源,web 通过 Vite alias @shared 引用
 └── tasks/            本地任务跟踪,不入库
 ```
 
 入口:后端 `apps/backend/app/main.py`,Web `apps/web/src/main.jsx`,iOS `apps/ios/LFAReader/LFAReaderApp.swift`。
+
+## 开发环境
+
+| 节点 | 持有代码 | 持有用户数据 |
+|------|---------|------------|
+| AWS Linux 服务器(当前会话所在机器) | apps/backend, apps/web, shared/, tasks/ | uploads/, *.db, .env |
+| 用户 macOS 计算机 | 全部代码,含 apps/ios | 无 |
+| Git 远程仓库 | 全部代码 | 不入库 |
+
+约定:
+- iOS 代码仅在 macOS 端开发,**本 Linux 机器严禁触碰 apps/ios/ 下任何文件**,即便目录因历史原因存在。
+- 后端与 Web 在本 Linux 机器开发,后端服务也在此运行。
+- 用户数据(uploads, SQLite 数据库,.env)无论来自 web 或 iOS 上传,均落在 AWS Linux 本机,不入库,不同步到 macOS。
 
 ## 行为准则
 
@@ -59,9 +72,9 @@ lfa-reader/
 - 查进程:`ps aux | grep -E "uvicorn|vite" | grep -v grep`
 
 ### iOS 端
-- 主开发环境为 Linux 无 Xcode,iOS 端无法编译运行。
-- iOS Swift 代码改动只能做静态检查,语法与类型推断需用户在 macOS 端验证。
-- Xcode 工程文件 `apps/ios/LFAReader.xcodeproj/project.pbxproj` 的资源引用、Build Phase、Target 配置必须在 Xcode GUI 中改,严禁手工编辑 pbxproj。
+- iOS 代码归 macOS 端,本 Linux 机器不持有也不修改 apps/ios/ 下任何文件。
+- 用户提出的 iOS 改动需求,在本会话只做需求澄清与方案讨论;实际编辑、Xcode 工程改动、编译验证,均请用户在 macOS 端进行。
+- 严禁手工编辑 `apps/ios/LFAReader.xcodeproj/project.pbxproj` 的资源引用、Build Phase、Target 配置;此类改动必须在 Xcode GUI 完成。
 
 ### Git 提交
 - 完成主要功能后立即 `git add` 并 `git commit`,commit message 由 Claude 撰写,简洁聚焦"为什么"。
