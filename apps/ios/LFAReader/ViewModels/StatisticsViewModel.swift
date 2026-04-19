@@ -2,31 +2,19 @@ import Foundation
 
 @Observable
 class StatisticsViewModel {
+    let workflow: DiseaseWorkflow
     var stats: GlobalStats?
     var isLoading = false
     var errorMessage: String?
-    var selectedWorkflowId = ""
 
     private let api = APIClient.shared
 
-    var selectedWorkflow: DiseaseWorkflow? {
-        DiseaseWorkflow.workflow(id: selectedWorkflowId)
-    }
-
-    @MainActor
-    func selectWorkflow(_ workflowId: String) {
-        selectedWorkflowId = workflowId
+    init(workflow: DiseaseWorkflow) {
+        self.workflow = workflow
     }
 
     @MainActor
     func loadStats() async {
-        guard let workflow = selectedWorkflow else {
-            stats = nil
-            errorMessage = nil
-            isLoading = false
-            return
-        }
-
         isLoading = true
         errorMessage = nil
 

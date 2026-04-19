@@ -35,11 +35,15 @@ class NewTestViewModel {
 
     func handleCapturedImage(_ image: UIImage) {
         selectedImage = image
+        uploadError = nil
+        uploadComplete = false
     }
 
     func handlePickedImages(_ images: [UIImage]) {
         guard let first = images.first else { return }
         selectedImage = first
+        uploadError = nil
+        uploadComplete = false
     }
 
     var selectedWorkflow: DiseaseWorkflow? {
@@ -59,9 +63,16 @@ class NewTestViewModel {
     func selectWorkflow(_ workflowId: String) {
         guard selectedWorkflowId != workflowId else { return }
         selectedWorkflowId = workflowId
+        selectedImage = nil
+        shareInfo = false
         age = ""
+        sex = ""
         breed = ""
+        areaCode = ""
         preventiveTreatment = nil
+        uploadError = nil
+        uploadComplete = false
+        uploadResult = nil
     }
 
     // MARK: - Upload

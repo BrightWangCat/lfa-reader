@@ -2,7 +2,67 @@ import SwiftUI
 import Charts
 
 struct StatisticsView: View {
-    @State private var viewModel = StatisticsViewModel()
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Choose a disease workflow to view aggregated statistics.")
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 4)
+                }
+
+                ForEach(DiseaseWorkflow.groupedByCategory(), id: \.category) { group in
+                    Section(group.category) {
+                        ForEach(group.items) { workflow in
+                            NavigationLink {
+                                WorkflowStatisticsDetailView(workflow: workflow)
+                            } label: {
+                                workflowRow(workflow)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Statistics")
+            .listStyle(.insetGrouped)
+        }
+    }
+
+    private func workflowRow(_ workflow: DiseaseWorkflow) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: workflowIcon(for: workflow))
+                .font(.title3)
+                .foregroundStyle(.tint)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(workflow.label)
+                    .font(.headline)
+                Text(workflow.species.displayName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func workflowIcon(for workflow: DiseaseWorkflow) -> String {
+        switch workflow.id {
+        case "fiv_felv":
+            return "cross.case.fill"
+        case "tick_borne":
+            return "pawprint.fill"
+        case "canine_urothelial_carcinoma":
+            return "drop.fill"
+        default:
+            return "chart.pie"
+        }
+    }
+}
+
+private struct WorkflowStatisticsDetailView: View {
+    let workflow: DiseaseWorkflow
+    @State private var viewModel: StatisticsViewModel
 
     private let pieCategories = ["Positive L", "Positive I", "Positive L+I"]
     private let pieDimensions = ["species", "age", "sex", "breed", "preventive_treatment"]
@@ -13,93 +73,62 @@ struct StatisticsView: View {
         .brown, .teal, .gray, Color(.systemRed), Color(.systemTeal),
     ]
 
+    init(workflow: DiseaseWorkflow) {
+        self.workflow = workflow
+        _viewModel = State(initialValue: StatisticsViewModel(workflow: workflow))
+    }
+
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.isLoading && viewModel.stats == nil {
-                    ProgressView("Loading statistics...")
-                } else if let error = viewModel.errorMessage {
-                    ContentUnavailableView("Error", systemImage: "exclamationmark.triangle", description: Text(error))
-                } else if viewModel.selectedWorkflow == nil {
-                    diseaseSelectionPrompt
-                } else if let stats = viewModel.stats {
-                    if stats.total == 0 {
-                        ContentUnavailableView("No Data", systemImage: "chart.pie", description: Text("No test results with patient information are available for this workflow."))
-                    } else {
-                        statsContent(stats)
-                    }
+        Group {
+            if viewModel.isLoading && viewModel.stats == nil {
+                ProgressView("Loading statistics...")
+            } else if let error = viewModel.errorMessage {
+                ContentUnavailableView("Error", systemImage: "exclamationmark.triangle", description: Text(error))
+            } else if let stats = viewModel.stats {
+                if stats.total == 0 {
+                    ContentUnavailableView("No Data", systemImage: "chart.pie", description: Text("No test results with patient information are available for this workflow."))
                 } else {
-                    diseaseSelectionPrompt
+                    statsContent(stats)
                 }
+            } else {
+                ProgressView("Loading statistics...")
             }
-            .navigationTitle("Statistics")
-            .task(id: viewModel.selectedWorkflowId) {
-                await viewModel.loadStats()
-            }
+        }
+        .navigationTitle(workflow.label)
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await viewModel.loadStats()
+        }
+        .refreshable {
+            await viewModel.loadStats()
         }
     }
 
     private func statsContent(_ stats: GlobalStats) -> some View {
         ScrollView {
             VStack(spacing: 24) {
-                workflowSelectionSection
+                workflowHeader
                 overviewSection(stats)
                 distributionChart(stats)
                 dimensionSections(stats)
-                zipCodeSection(stats)
+                geographicSection(stats)
             }
             .padding()
         }
     }
 
-    private var diseaseSelectionPrompt: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                workflowSelectionSection
-                ContentUnavailableView("Select a Workflow", systemImage: "chart.pie", description: Text("Choose a disease workflow to view aggregated statistics."))
-            }
-            .padding()
+    private var workflowHeader: some View {
+        HStack(spacing: 8) {
+            Text(workflow.label)
+                .font(.subheadline.weight(.semibold))
+            Text(workflow.species.displayName)
+                .font(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(.systemGray5), in: Capsule())
+                .foregroundStyle(.secondary)
         }
-    }
-
-    private var workflowSelectionSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Disease Workflows")
-                .font(.headline)
-
-            ForEach(DiseaseWorkflow.groupedByCategory(), id: \.category) { group in
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(group.category)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    ForEach(group.items) { workflow in
-                        Button {
-                            viewModel.selectWorkflow(workflow.id)
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(workflow.label)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.primary)
-                                    Text(workflow.species.displayName)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Spacer()
-
-                                Image(systemName: viewModel.selectedWorkflowId == workflow.id ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(viewModel.selectedWorkflowId == workflow.id ? Color.accentColor : Color.secondary.opacity(0.4))
-                            }
-                            .padding()
-                            .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func overviewSection(_ stats: GlobalStats) -> some View {
@@ -247,34 +276,31 @@ struct StatisticsView: View {
     }
 
     @ViewBuilder
-    private func zipCodeSection(_ stats: GlobalStats) -> some View {
-        if let zipData = stats.dimensions["area_code"], !isDimensionEmpty(zipData) {
+    private func geographicSection(_ stats: GlobalStats) -> some View {
+        if let areaData = stats.dimensions["area_code"], !isDimensionEmpty(areaData) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Geographic Distribution")
                     .font(.headline)
 
-                let mapData = transformZipData(zipData)
-                ZipCodeMapView(zipData: mapData)
+                ZipCodeMapView(zipData: transformAreaData(areaData))
                     .frame(height: 350)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
     }
 
-    private func transformZipData(_ data: [String: [String: Int]]) -> [String: [String: Int]] {
+    private func transformAreaData(_ data: [String: [String: Int]]) -> [String: [String: Int]] {
         var result: [String: [String: Int]] = [:]
         for category in pieCategories {
             if let valueCounts = data[category] {
-                for (zip, count) in valueCounts {
-                    result[zip, default: [:]][category] = count
+                for (areaCode, count) in valueCounts {
+                    result[areaCode, default: [:]][category] = count
                 }
             }
         }
-        for zip in result.keys {
-            for category in pieCategories {
-                if result[zip]?[category] == nil {
-                    result[zip]?[category] = 0
-                }
+        for areaCode in result.keys {
+            for category in pieCategories where result[areaCode]?[category] == nil {
+                result[areaCode]?[category] = 0
             }
         }
         return result
@@ -309,13 +335,22 @@ struct FlowLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = arrange(proposal: ProposedViewSize(width: bounds.width, height: bounds.height), subviews: subviews)
+        let result = arrange(
+            proposal: ProposedViewSize(width: bounds.width, height: bounds.height),
+            subviews: subviews
+        )
         for (index, position) in result.positions.enumerated() {
-            subviews[index].place(at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y), proposal: .unspecified)
+            subviews[index].place(
+                at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y),
+                proposal: .unspecified
+            )
         }
     }
 
-    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
+    private func arrange(
+        proposal: ProposedViewSize,
+        subviews: Subviews
+    ) -> (size: CGSize, positions: [CGPoint]) {
         let maxWidth = proposal.width ?? .infinity
         var positions: [CGPoint] = []
         var x: CGFloat = 0

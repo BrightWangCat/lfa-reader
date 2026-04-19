@@ -51,7 +51,7 @@ struct ResultsView: View {
             Text("No Results Yet")
                 .font(.largeTitle.bold())
 
-            Text("Upload a test strip image to see your history here")
+            Text("Your analyzed images will appear here.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -67,8 +67,12 @@ struct ResultsView: View {
                 NavigationLink {
                     ImageDetailView(imageId: image.id)
                 } label: {
-                    imageRow(image)
+                    resultCard(for: image)
                 }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(role: .destructive) {
                         viewModel.deleteTargetId = image.id
@@ -78,57 +82,84 @@ struct ResultsView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color(.systemGroupedBackground))
+    }
+
+    private func resultCard(for image: TestImageSummary) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                if let disease = image.diseaseCategory {
+                    capsuleLabel(text: disease, tint: .blue)
+                }
+
+                Spacer()
+
+                statusBadge(image.readingStatus)
+            }
+
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(image.finalResult ?? "Pending Review")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(resultForeground(for: image.finalResult))
+
+                    Text(image.originalFilename)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 4)
+            }
+
+            HStack(spacing: 10) {
+                Label(image.createdAt.formattedDate, systemImage: "clock")
+                    .lineLimit(1)
+
+                if image.manualCorrection != nil {
+                    capsuleLabel(text: "Corrected", tint: .orange)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
     }
 
     @ViewBuilder
     private func statusBadge(_ status: String?) -> some View {
-        let s = status ?? "idle"
-        Text(statusLabel(s))
+        let value = status ?? "idle"
+        Text(statusLabel(value))
             .font(.caption2.weight(.medium))
             .padding(.horizontal, 8)
-            .padding(.vertical, 2)
-            .background(statusColor(s).opacity(0.15), in: Capsule())
-            .foregroundStyle(statusColor(s))
+            .padding(.vertical, 4)
+            .background(statusColor(value).opacity(0.14), in: Capsule())
+            .foregroundStyle(statusColor(value))
     }
 
-    private func imageRow(_ image: TestImageSummary) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(image.originalFilename)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
+    private func capsuleLabel(text: String, tint: Color) -> some View {
+        Text(text)
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(tint.opacity(0.12), in: Capsule())
+            .foregroundStyle(tint)
+    }
 
-                if let disease = image.diseaseCategory {
-                    Text(disease)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-
-                Text(image.createdAt.formattedDate)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 6) {
-                statusBadge(image.readingStatus)
-
-                if let result = image.finalResult {
-                    Text(result)
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(resultColor(for: result).opacity(0.15), in: Capsule())
-                        .foregroundStyle(resultColor(for: result))
-                } else {
-                    Text("Pending")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
+    private func resultForeground(for result: String?) -> Color {
+        guard let result else { return .secondary }
+        return resultColor(for: result)
     }
 
     private func statusLabel(_ status: String) -> String {

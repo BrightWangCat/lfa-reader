@@ -1,10 +1,26 @@
 import SwiftUI
 
+private enum ImageVariant: String, CaseIterable, Identifiable {
+    case processed
+    case original
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .processed:
+            return "Processed"
+        case .original:
+            return "Original"
+        }
+    }
+}
+
 struct ImageDetailView: View {
     @State private var viewModel: ImageDetailViewModel
     @State private var zoom: CGFloat = 1.0
     @State private var lastZoom: CGFloat = 1.0
-    @State private var showOriginal = false
+    @State private var imageVariant: ImageVariant = .processed
 
     init(imageId: Int, initialImage: TestImage? = nil) {
         _viewModel = State(initialValue: ImageDetailViewModel(imageId: imageId, initialImage: initialImage))
@@ -20,7 +36,7 @@ struct ImageDetailView: View {
                             warningsSection(image.warnings)
                         }
                         resultSection(image)
-                        correctionSection
+                        correctionSection(image)
                         patientInfoSection(image)
                         metadataSection(image)
                     }
@@ -39,8 +55,8 @@ struct ImageDetailView: View {
         .task {
             await viewModel.loadDetailsIfNeeded()
         }
-        .task(id: showOriginal) {
-            await viewModel.loadImage(original: showOriginal)
+        .task(id: imageVariant) {
+            await viewModel.loadImage(original: imageVariant == .original)
         }
         .onDisappear {
             viewModel.stopPolling()
@@ -48,54 +64,55 @@ struct ImageDetailView: View {
     }
 
     private func imageSection(_ imageMeta: TestImage) -> some View {
-        ZStack {
-            if let image = viewModel.loadedImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .scaleEffect(zoom)
-                    .gesture(
-                        MagnifyGesture()
-                            .onChanged { value in
-                                zoom = min(max(lastZoom * value.magnification, 1.0), 5.0)
+        VStack(spacing: 14) {
+            ZStack {
+                if let image = viewModel.loadedImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .scaleEffect(zoom)
+                        .gesture(
+                            MagnifyGesture()
+                                .onChanged { value in
+                                    zoom = min(max(lastZoom * value.magnification, 1.0), 5.0)
+                                }
+                                .onEnded { value in
+                                    zoom = min(max(lastZoom * value.magnification, 1.0), 5.0)
+                                    lastZoom = zoom
+                                }
+                        )
+                        .onTapGesture(count: 2) {
+                            withAnimation {
+                                zoom = 1.0
+                                lastZoom = 1.0
                             }
-                            .onEnded { value in
-                                zoom = min(max(lastZoom * value.magnification, 1.0), 5.0)
-                                lastZoom = zoom
-                            }
-                    )
-                    .onTapGesture(count: 2) {
-                        withAnimation {
-                            zoom = 1.0
-                            lastZoom = 1.0
                         }
-                    }
-            } else if viewModel.isLoadingImage {
-                ProgressView()
-                    .frame(height: 250)
-                    .frame(maxWidth: .infinity)
-            } else {
-                Image(systemName: "photo")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
-                    .frame(height: 250)
-                    .frame(maxWidth: .infinity)
-            }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if imageMeta.isPreprocessed {
-                Button(showOriginal ? "Show Processed" : "Show Original") {
-                    showOriginal.toggle()
+                } else if viewModel.isLoadingImage {
+                    ProgressView()
+                        .frame(height: 260)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Image(systemName: "photo")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary)
+                        .frame(height: 260)
+                        .frame(maxWidth: .infinity)
                 }
-                .font(.caption)
-                .buttonStyle(.bordered)
-                .padding(10)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 220)
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 18))
+
+            if imageMeta.isPreprocessed {
+                Picker("Image Version", selection: $imageVariant) {
+                    ForEach(ImageVariant.allCases) { variant in
+                        Text(variant.title).tag(variant)
+                    }
+                }
+                .pickerStyle(.segmented)
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 200)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func warningsSection(_ warnings: [String]) -> some View {
@@ -107,43 +124,35 @@ struct ImageDetailView: View {
             ForEach(warnings, id: \.self) { warning in
                 Text(resolveWarning(warning))
                     .font(.subheadline)
+                    .foregroundStyle(.primary)
             }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func resultSection(_ image: TestImage) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Classification Result")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Classification")
+                        .font(.headline)
 
-            HStack {
-                Text(image.finalResult ?? "Pending")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(resultColor(for: image.finalResult ?? "Pending"))
-
-                Spacer()
-
-                if image.manualCorrection != nil {
-                    Label("Corrected", systemImage: "pencil.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                    Text(image.finalResult ?? "Pending")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(resultColor(for: image.finalResult ?? "Pending"))
                 }
-            }
 
-            HStack {
-                Text("Status")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
                 Spacer()
-                Text(statusLabel(image.readingStatus))
-                    .font(.caption.weight(.medium))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(statusColor(image.readingStatus).opacity(0.15), in: Capsule())
-                    .foregroundStyle(statusColor(image.readingStatus))
+
+                VStack(alignment: .trailing, spacing: 8) {
+                    statusBadge(image.readingStatus)
+
+                    if image.manualCorrection != nil {
+                        capsuleLabel(text: "Corrected", tint: .orange)
+                    }
+                }
             }
 
             if let cvResult = image.cvResult {
@@ -157,10 +166,10 @@ struct ImageDetailView: View {
             }
 
             if image.readingStatus == "running" {
-                HStack {
+                HStack(spacing: 12) {
                     ProgressView()
                     Text("Classification running...")
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
 
                     Spacer()
@@ -174,12 +183,13 @@ struct ImageDetailView: View {
                 Button {
                     Task { await viewModel.reclassify() }
                 } label: {
-                    Label(image.cvResult == nil ? "Run Classification" : "Re-run Classification", systemImage: "arrow.clockwise")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
+                    Label(
+                        image.cvResult == nil ? "Run Classification" : "Re-run Classification",
+                        systemImage: "arrow.clockwise"
+                    )
+                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .buttonStyle(.borderedProminent)
             }
 
             if let error = viewModel.classificationError {
@@ -190,13 +200,17 @@ struct ImageDetailView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 18))
     }
 
-    private var correctionSection: some View {
+    private func correctionSection(_ image: TestImage) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Manual Correction")
                 .font(.headline)
+
+            Text("Use this when the visible bands disagree with the CV result.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Picker("Category", selection: $viewModel.selectedCorrection) {
                 Text("Select...").tag("")
@@ -218,12 +232,12 @@ struct ImageDetailView: View {
                 Label("Save Correction", systemImage: "checkmark.circle")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
             .disabled(viewModel.selectedCorrection.isEmpty || viewModel.isSavingCorrection)
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 18))
     }
 
     @ViewBuilder
@@ -246,7 +260,7 @@ struct ImageDetailView: View {
             .font(.subheadline)
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
+            .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 18))
         }
     }
 
@@ -263,7 +277,7 @@ struct ImageDetailView: View {
         .font(.subheadline)
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 18))
     }
 
     private func formatFileSize(_ bytes: Int) -> String {
@@ -272,7 +286,26 @@ struct ImageDetailView: View {
         return String(format: "%.1f MB", Double(bytes) / (1024 * 1024))
     }
 
-    private func statusLabel(_ status: String?) -> String {
+    private func statusBadge(_ status: String?) -> some View {
+        let value = status ?? "idle"
+        return Text(statusLabel(value))
+            .font(.caption2.weight(.medium))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(statusColor(value).opacity(0.14), in: Capsule())
+            .foregroundStyle(statusColor(value))
+    }
+
+    private func capsuleLabel(text: String, tint: Color) -> some View {
+        Text(text)
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(tint.opacity(0.12), in: Capsule())
+            .foregroundStyle(tint)
+    }
+
+    private func statusLabel(_ status: String) -> String {
         switch status {
         case "running":
             return "Running"
@@ -285,7 +318,7 @@ struct ImageDetailView: View {
         }
     }
 
-    private func statusColor(_ status: String?) -> Color {
+    private func statusColor(_ status: String) -> Color {
         switch status {
         case "running":
             return .orange
