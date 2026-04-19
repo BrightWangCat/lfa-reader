@@ -20,13 +20,15 @@ lfa-reader/
 
 | 节点 | 持有代码 | 持有用户数据 |
 |------|---------|------------|
-| AWS Linux 服务器(当前会话所在机器) | apps/backend, apps/web, shared/, tasks/ | uploads/, *.db, .env |
-| 用户 macOS 计算机 | 全部代码,含 apps/ios | 无 |
+| AWS Linux 服务器 | apps/backend, apps/web, shared/ 的运行副本 | uploads/, *.db, .env |
+| 当前本机仓库(当前会话所在机器) | 全部代码,含 apps/backend, apps/web, apps/ios, shared/, tasks/ | 无 |
 | Git 远程仓库 | 全部代码 | 不入库 |
 
 约定:
-- iOS 代码仅在 macOS 端开发,**本 Linux 机器严禁触碰 apps/ios/ 下任何文件**,即便目录因历史原因存在。
-- 后端与 Web 在本 Linux 机器开发,后端服务也在此运行。
+- 当前会话默认在本机仓库工作;调整后端或 Web 代码时,必须先 SSH 到 AWS 主机 `/home/ubuntu/lfa-reader` 上修改。
+- iOS 代码在本机仓库 `apps/ios/` 下开发与修改,不得在 AWS 主机上编辑 iOS 代码。
+- 本机仓库与 Git 远程仓库共同构成所有代码的全量备份,不得把 AWS 主机视为唯一代码来源。
+- 后端与 Web 在 AWS Linux 主机开发与运行,后端服务也在 AWS 主机上运行。
 - 用户数据(uploads, SQLite 数据库,.env)无论来自 web 或 iOS 上传,均落在 AWS Linux 本机,不入库,不同步到 macOS。
 
 ## 数据安全(最高优先级)
@@ -82,15 +84,15 @@ lfa-reader/
 ## 开发约定
 
 ### 服务重启
-修改后端 Python 代码(router、service、model 等)后立即重启后端;修改前端代码后重启前端 dev server(若运行中)。在仓库根目录执行:
+修改后端 Python 代码(router、service、model 等)后立即重启后端;修改前端代码后重启前端 dev server(若运行中)。在 AWS 主机 `/home/ubuntu/lfa-reader` 仓库根目录执行:
 
 - 后端:`kill $(pgrep -f "uvicorn app.main:app") 2>/dev/null; cd apps/backend && nohup venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 > uvicorn.log 2>&1 & disown`
 - 前端:`kill $(pgrep -f "vite") 2>/dev/null; cd apps/web && nohup npm run dev > vite.log 2>&1 & disown`
 - 查进程:`ps aux | grep -E "uvicorn|vite" | grep -v grep`
 
 ### iOS 端
-- iOS 代码归 macOS 端,本 Linux 机器不持有也不修改 apps/ios/ 下任何文件。
-- 用户提出的 iOS 改动需求,在本会话只做需求澄清与方案讨论;实际编辑、Xcode 工程改动、编译验证,均请用户在 macOS 端进行。
+- iOS 代码在本机会话的本地仓库 `apps/ios/` 下修改,不在 AWS 主机上编辑。
+- 用户提出的 iOS 改动需求时,Swift 源码、资源文件与普通配置优先在本机仓库完成;涉及 Xcode GUI 的工程项调整时,在本机 Xcode 中完成并回写到本机仓库。
 - 严禁手工编辑 `apps/ios/LFAReader.xcodeproj/project.pbxproj` 的资源引用、Build Phase、Target 配置;此类改动必须在 Xcode GUI 完成。
 
 ### Git 提交
