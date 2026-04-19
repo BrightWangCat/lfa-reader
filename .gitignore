@@ -20,6 +20,7 @@ uploads/
 
 # Logs
 *.log
+tmp/
 
 # Node
 node_modules/
