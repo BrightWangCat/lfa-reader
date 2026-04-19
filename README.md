@@ -8,6 +8,9 @@ An automated reading and classification system for **veterinary lateral flow ass
 
 The current product uses a **single-image, image-based workflow** across both the web app and the native iOS app. Each uploaded image can be preprocessed, classified, manually corrected, and reviewed together with workflow-specific patient metadata.
 
+The source code is published under a **source-available, noncommercial** license.
+This repository is **not** distributed under an OSI-approved open source license.
+
 **Live Demo**: https://16.59.11.102:8080  
 The site uses a self-signed certificate, so browsers will show a warning the first time you open it.
 
@@ -212,4 +215,6 @@ The classification engine uses a deterministic OpenCV pipeline rather than a lea
 
 ## License
 
-This project is intended for veterinary diagnostic research purposes.
+This repository is licensed under the **PolyForm Noncommercial License 1.0.0**.
+Commercial use is not allowed under that license.
+See [LICENSE](LICENSE) and [NOTICE](NOTICE) for details.
