@@ -11,7 +11,7 @@ lfa-reader/
 │   ├── web/          React 19 + Vite + Ant Design,在 AWS Linux 开发
 │   └── ios/          SwiftUI,iOS 17+,Xcode 工程 apps/ios/LFAReader.xcodeproj,仅在 macOS 开发
 ├── shared/data/      跨端共享资源,web 通过 Vite alias @shared 引用
-└── tasks/            本地任务跟踪,不入库
+└── tasks/            本地经验记录,不入库
 ```
 
 入口:后端 `apps/backend/app/main.py`,Web `apps/web/src/main.jsx`,iOS `apps/ios/LFAReader/LFAReaderApp.swift`。
@@ -67,9 +67,9 @@ lfa-reader/
 ## 工作流
 
 ### 计划与执行
-- 3 步以上或涉及架构决策的任务先出计划,写入 `tasks/todo.md`,使用复选框格式。
-- 用户确认前严禁执行;执行偏离计划立即停下重做计划。
-- 新任务开始前,把上一份 `tasks/todo.md` 重命名为 `tasks/todo-YYYYMMDD-<task-slug>.md` 归档。
+- 3 步以上或涉及架构决策的任务先在对话中给出计划。
+- 用户确认前严禁执行;执行偏离计划立即停下并重新确认计划。
+- 不再创建、维护或归档 `tasks/todo.md`。
 
 ### 完成验证
 - 通过运行检查、查看日志、演示功能证明可用,再标记完成。
