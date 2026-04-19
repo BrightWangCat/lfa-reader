@@ -16,14 +16,24 @@ struct GlobalStats: Codable {
     static let displayCategories = ["Negative", "Positive L", "Positive I", "Positive L+I"]
 
     /// Ordered dimension keys for display
-    static let dimensionKeys = ["species", "age", "sex", "breed", "zip_code"]
+    static let dimensionKeys = [
+        "disease_category",
+        "species",
+        "age",
+        "sex",
+        "breed",
+        "area_code",
+        "preventive_treatment",
+    ]
 
     /// Human-readable dimension titles
     static let dimensionTitles: [String: String] = [
+        "disease_category": "Disease",
         "species": "Species",
         "age": "Age",
         "sex": "Sex",
         "breed": "Breed",
-        "zip_code": "Zip Code",
+        "area_code": "Area Code",
+        "preventive_treatment": "Preventive Treatment",
     ]
 }

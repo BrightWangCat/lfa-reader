@@ -1,17 +1,6 @@
 import Foundation
 
-/// Response from the single-image upload endpoint (POST /api/upload/single)
-struct SingleUploadResponse: Codable {
-    let batchId: Int
-    let imageId: Int
-    let patientInfo: PatientInfo?
-
-    enum CodingKeys: String, CodingKey {
-        case batchId = "batch_id"
-        case imageId = "image_id"
-        case patientInfo = "patient_info"
-    }
-}
+typealias SingleUploadResponse = TestImage
 
 /// Response from PUT /api/readings/image/{id}/correct
 struct CorrectionResponse: Codable {

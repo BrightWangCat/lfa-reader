@@ -169,98 +169,65 @@ actor APIClient {
     func uploadSingle(
         imageData: Data,
         filename: String,
+        diseaseCategory: String,
         shareInfo: Bool,
-        species: String?,
         age: String?,
         sex: String?,
         breed: String?,
-        zipCode: String?
+        areaCode: String?,
+        preventiveTreatment: Bool?
     ) async throws -> SingleUploadResponse {
         var form = MultipartFormData()
         form.addFile(name: "file", filename: filename, mimeType: "image/jpeg", data: imageData)
+        form.addField(name: "disease_category", value: diseaseCategory)
         form.addField(name: "share_info", value: shareInfo ? "true" : "false")
 
         if shareInfo {
-            if let species, !species.isEmpty { form.addField(name: "species", value: species) }
             if let age, !age.isEmpty { form.addField(name: "age", value: age) }
             if let sex, !sex.isEmpty { form.addField(name: "sex", value: sex) }
             if let breed, !breed.isEmpty { form.addField(name: "breed", value: breed) }
-            if let zipCode, !zipCode.isEmpty { form.addField(name: "zip_code", value: zipCode) }
+            if let areaCode, !areaCode.isEmpty { form.addField(name: "area_code", value: areaCode) }
+            if let preventiveTreatment {
+                form.addField(
+                    name: "preventive_treatment",
+                    value: preventiveTreatment ? "true" : "false"
+                )
+            }
         }
 
         return try await uploadRequest(path: "/upload/single", form: form)
     }
 
-    /// Upload multiple images as a batch.
-    func uploadBatch(
-        images: [(data: Data, filename: String)],
-        batchName: String?
-    ) async throws -> Batch {
-        var form = MultipartFormData()
-        for image in images {
-            form.addFile(name: "files", filename: image.filename, mimeType: "image/jpeg", data: image.data)
-        }
-        if let batchName, !batchName.isEmpty {
-            form.addField(name: "batch_name", value: batchName)
-        }
-        return try await uploadRequest(path: "/upload/batch", form: form)
+    /// List images. Admin sees all images; regular users see only their own.
+    func fetchImages() async throws -> [TestImageSummary] {
+        try await request("GET", path: "/upload/images")
     }
 
-    /// List the current user's batches.
-    func fetchBatches() async throws -> [BatchSummary] {
-        try await request("GET", path: "/upload/batches")
+    /// Fetch a single image with its patient info and classification metadata.
+    func fetchImage(id: Int) async throws -> TestImage {
+        try await request("GET", path: "/upload/image/\(id)")
     }
 
-    /// Get a single batch with all its images.
-    func fetchBatch(id: Int) async throws -> Batch {
-        try await request("GET", path: "/upload/batch/\(id)")
-    }
-
-    /// Delete a batch and its associated files.
-    func deleteBatch(id: Int) async throws {
-        guard let url = URL(string: baseURL + "/upload/batch/\(id)") else {
-            throw APIError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        if let token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch {
-            throw APIError.networkError(error)
-        }
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.networkError(URLError(.badServerResponse))
-        }
-
-        guard (200...299).contains(httpResponse.statusCode) else {
-            let detail = parseErrorDetail(from: data)
-            throw APIError.httpError(statusCode: httpResponse.statusCode, detail: detail)
-        }
+    /// Delete an image and its associated files.
+    func deleteImage(id: Int) async throws {
+        try await rawDataRequest("DELETE", path: "/upload/image/\(id)")
     }
 
     // MARK: - Classification endpoints
 
-    /// Start CV classification for a batch.
-    func startClassification(batchId: Int) async throws {
-        try await rawDataRequest("POST", path: "/readings/batch/\(batchId)/classify")
+    /// Start CV classification for a single image.
+    func startClassification(imageId: Int) async throws {
+        try await rawDataRequest("POST", path: "/readings/image/\(imageId)/classify")
     }
 
-    /// Poll classification progress for a batch.
-    func fetchClassificationStatus(batchId: Int) async throws -> ClassificationStatus {
-        try await request("GET", path: "/readings/batch/\(batchId)/status")
+    /// Poll classification progress for a single image.
+    func fetchClassificationStatus(imageId: Int) async throws -> ClassificationStatus {
+        try await request("GET", path: "/readings/image/\(imageId)/status")
     }
 
     /// Cancel a running classification.
-    func cancelClassification(batchId: Int) async throws {
-        try await rawDataRequest("POST", path: "/readings/batch/\(batchId)/cancel")
+    func cancelClassification(imageId: Int) async throws {
+        try await rawDataRequest("POST", path: "/readings/image/\(imageId)/cancel")
     }
 
     /// Submit a manual correction for an image.
@@ -278,8 +245,16 @@ actor APIClient {
     // MARK: - Statistics
 
     /// Fetch global statistics across all users.
-    func fetchGlobalStats() async throws -> GlobalStats {
-        try await request("GET", path: "/stats/global")
+    func fetchGlobalStats(diseaseCategory: String? = nil) async throws -> GlobalStats {
+        var path = "/stats/global"
+        if let diseaseCategory,
+           var components = URLComponents(string: "https://placeholder\(path)") {
+            components.queryItems = [
+                URLQueryItem(name: "disease_category", value: diseaseCategory)
+            ]
+            path = components.percentEncodedQuery.map { "\(path)?\($0)" } ?? path
+        }
+        return try await request("GET", path: path)
     }
 
     // MARK: - Image download

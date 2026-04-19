@@ -4,7 +4,7 @@ import UIKit
 actor ImageCache {
     static let shared = ImageCache()
 
-    private let cache: NSCache<NSNumber, UIImage>
+    private let cache: NSCache<NSString, UIImage>
 
     private init() {
         cache = NSCache()
@@ -12,12 +12,16 @@ actor ImageCache {
         cache.totalCostLimit = 50 * 1024 * 1024
     }
 
-    func image(for id: Int) -> UIImage? {
-        cache.object(forKey: NSNumber(value: id))
+    private func cacheKey(for id: Int, original: Bool) -> NSString {
+        "\(id)-\(original ? "original" : "processed")" as NSString
     }
 
-    func store(_ image: UIImage, for id: Int) {
-        cache.setObject(image, forKey: NSNumber(value: id))
+    func image(for id: Int, original: Bool) -> UIImage? {
+        cache.object(forKey: cacheKey(for: id, original: original))
+    }
+
+    func store(_ image: UIImage, for id: Int, original: Bool) {
+        cache.setObject(image, forKey: cacheKey(for: id, original: original))
     }
 
     func clear() {

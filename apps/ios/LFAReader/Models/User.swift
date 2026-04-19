@@ -3,7 +3,6 @@ import Foundation
 /// User roles matching the backend RBAC system
 enum UserRole: String, Codable {
     case single
-    case batch
     case admin
 }
 

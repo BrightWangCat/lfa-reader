@@ -4,32 +4,50 @@ struct ImageDetailView: View {
     @State private var viewModel: ImageDetailViewModel
     @State private var zoom: CGFloat = 1.0
     @State private var lastZoom: CGFloat = 1.0
+    @State private var showOriginal = false
 
-    init(testImage: TestImage) {
-        _viewModel = State(initialValue: ImageDetailViewModel(testImage: testImage))
+    init(imageId: Int, initialImage: TestImage? = nil) {
+        _viewModel = State(initialValue: ImageDetailViewModel(imageId: imageId, initialImage: initialImage))
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                imageSection
-                resultSection
-                correctionSection
-                patientInfoSection
-                metadataSection
+        Group {
+            if let image = viewModel.testImage {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        imageSection(image)
+                        if !image.warnings.isEmpty {
+                            warningsSection(image.warnings)
+                        }
+                        resultSection(image)
+                        correctionSection
+                        patientInfoSection(image)
+                        metadataSection(image)
+                    }
+                    .padding()
+                }
+            } else if viewModel.isLoadingDetails {
+                ProgressView("Loading image details...")
+            } else if let error = viewModel.detailError {
+                ContentUnavailableView("Error", systemImage: "exclamationmark.triangle", description: Text(error))
+            } else {
+                ContentUnavailableView("Image Not Available", systemImage: "photo", description: Text("This image could not be loaded."))
             }
-            .padding()
         }
         .navigationTitle("Image #\(viewModel.imageId)")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await viewModel.loadImage()
+            await viewModel.loadDetailsIfNeeded()
+        }
+        .task(id: showOriginal) {
+            await viewModel.loadImage(original: showOriginal)
+        }
+        .onDisappear {
+            viewModel.stopPolling()
         }
     }
 
-    // MARK: - Image with zoom
-
-    private var imageSection: some View {
+    private func imageSection(_ imageMeta: TestImage) -> some View {
         ZStack {
             if let image = viewModel.loadedImage {
                 Image(uiImage: image)
@@ -64,74 +82,104 @@ struct ImageDetailView: View {
                     .frame(maxWidth: .infinity)
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            if imageMeta.isPreprocessed {
+                Button(showOriginal ? "Show Processed" : "Show Original") {
+                    showOriginal.toggle()
+                }
+                .font(.caption)
+                .buttonStyle(.bordered)
+                .padding(10)
+            }
+        }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 200)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    // MARK: - Classification result
+    private func warningsSection(_ warnings: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Advisory", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+                .foregroundStyle(.orange)
 
-    private var resultSection: some View {
+            ForEach(warnings, id: \.self) { warning in
+                Text(resolveWarning(warning))
+                    .font(.subheadline)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func resultSection(_ image: TestImage) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Classification Result")
                 .font(.headline)
 
             HStack {
-                Text(viewModel.testImage.finalResult)
+                Text(image.finalResult ?? "Pending")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(resultColor(for: viewModel.testImage.finalResult))
+                    .foregroundStyle(resultColor(for: image.finalResult ?? "Pending"))
 
                 Spacer()
 
-                if viewModel.testImage.manualCorrection != nil {
+                if image.manualCorrection != nil {
                     Label("Corrected", systemImage: "pencil.circle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
             }
 
-            if let cvResult = viewModel.testImage.cvResult {
+            HStack {
+                Text("Status")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(statusLabel(image.readingStatus))
+                    .font(.caption.weight(.medium))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(statusColor(image.readingStatus).opacity(0.15), in: Capsule())
+                    .foregroundStyle(statusColor(image.readingStatus))
+            }
+
+            if let cvResult = image.cvResult {
                 LabeledContent("CV Result", value: cvResult)
                     .font(.subheadline)
             }
 
-            if let confidence = viewModel.testImage.cvConfidence {
+            if let confidence = image.cvConfidence {
                 LabeledContent("Confidence", value: confidence)
                     .font(.subheadline)
             }
 
-            Button {
-                Task { await viewModel.reclassify() }
-            } label: {
-                Label("Re-classify", systemImage: "arrow.clockwise")
-                    .font(.caption)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(viewModel.isReclassifying)
-            .padding(.top, 4)
+            if image.readingStatus == "running" {
+                HStack {
+                    ProgressView()
+                    Text("Classification running...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-            if viewModel.isReclassifying {
-                if let progress = viewModel.reclassifyProgress {
-                    ProgressView(value: Double(progress.completed), total: Double(progress.total)) {
-                        Text("Classifying...")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } currentValueLabel: {
-                        Text("\(progress.completed)/\(progress.total)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                    Spacer()
+
+                    Button("Cancel", role: .destructive) {
+                        Task { await viewModel.cancelReclassification() }
                     }
-                } else {
-                    HStack {
-                        ProgressView()
-                        Text("Starting classification...")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    .buttonStyle(.bordered)
                 }
+            } else {
+                Button {
+                    Task { await viewModel.reclassify() }
+                } label: {
+                    Label(image.cvResult == nil ? "Run Classification" : "Re-run Classification", systemImage: "arrow.clockwise")
+                        .font(.caption)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
 
             if let error = viewModel.classificationError {
@@ -144,8 +192,6 @@ struct ImageDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
     }
-
-    // MARK: - Manual correction
 
     private var correctionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -180,20 +226,22 @@ struct ImageDetailView: View {
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    // MARK: - Patient info
-
     @ViewBuilder
-    private var patientInfoSection: some View {
-        if let info = viewModel.testImage.patientInfo {
+    private func patientInfoSection(_ image: TestImage) -> some View {
+        if let info = image.patientInfo {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Patient Information")
                     .font(.headline)
 
+                LabeledContent("Disease", value: info.diseaseCategory)
                 if let species = info.species { LabeledContent("Species", value: species) }
-                if let age = info.age { LabeledContent("Age", value: "\(age) years") }
+                if let age = info.age { LabeledContent("Age", value: age) }
                 if let sex = info.sex { LabeledContent("Sex", value: sex) }
                 if let breed = info.breed { LabeledContent("Breed", value: breed) }
-                if let zipCode = info.zipCode { LabeledContent("Zip Code", value: zipCode) }
+                if let preventiveTreatment = info.preventiveTreatment {
+                    LabeledContent("Preventive Treatment", value: preventiveTreatment ? "Yes" : "No")
+                }
+                if let areaCode = info.areaCode { LabeledContent("Area Code", value: areaCode) }
             }
             .font(.subheadline)
             .padding()
@@ -202,17 +250,15 @@ struct ImageDetailView: View {
         }
     }
 
-    // MARK: - Metadata
-
-    private var metadataSection: some View {
+    private func metadataSection(_ image: TestImage) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Details")
                 .font(.headline)
 
-            LabeledContent("Filename", value: viewModel.testImage.originalFilename)
-            LabeledContent("Size", value: formatFileSize(viewModel.testImage.fileSize))
-            LabeledContent("Preprocessed", value: viewModel.testImage.isPreprocessed ? "Yes" : "No")
-            LabeledContent("Created", value: viewModel.testImage.createdAt.formattedDate)
+            LabeledContent("Filename", value: image.originalFilename)
+            LabeledContent("Size", value: formatFileSize(image.fileSize))
+            LabeledContent("Preprocessed", value: image.isPreprocessed ? "Yes" : "No")
+            LabeledContent("Created", value: image.createdAt.formattedDate)
         }
         .font(.subheadline)
         .padding()
@@ -224,5 +270,31 @@ struct ImageDetailView: View {
         if bytes < 1024 { return "\(bytes) B" }
         if bytes < 1024 * 1024 { return String(format: "%.1f KB", Double(bytes) / 1024) }
         return String(format: "%.1f MB", Double(bytes) / (1024 * 1024))
+    }
+
+    private func statusLabel(_ status: String?) -> String {
+        switch status {
+        case "running":
+            return "Running"
+        case "completed":
+            return "Done"
+        case "failed":
+            return "Failed"
+        default:
+            return "Idle"
+        }
+    }
+
+    private func statusColor(_ status: String?) -> Color {
+        switch status {
+        case "running":
+            return .orange
+        case "completed":
+            return .green
+        case "failed":
+            return .red
+        default:
+            return .gray
+        }
     }
 }

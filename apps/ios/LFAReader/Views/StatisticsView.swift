@@ -4,13 +4,9 @@ import Charts
 struct StatisticsView: View {
     @State private var viewModel = StatisticsViewModel()
 
-    /// Only positive categories get pie charts (matching web app)
     private let pieCategories = ["Positive L", "Positive I", "Positive L+I"]
+    private let pieDimensions = ["species", "age", "sex", "breed", "preventive_treatment"]
 
-    /// Dimensions that get pie charts (zip_code uses map instead)
-    private let pieDimensions = ["species", "age", "sex", "breed"]
-
-    /// Palette for pie slices within a single chart
     private let slicePalette: [Color] = [
         .blue, .orange, .green, .red, .purple,
         .cyan, .pink, .yellow, .mint, .indigo,
@@ -22,29 +18,31 @@ struct StatisticsView: View {
             Group {
                 if viewModel.isLoading && viewModel.stats == nil {
                     ProgressView("Loading statistics...")
-                } else if let stats = viewModel.stats {
-                    statsContent(stats)
                 } else if let error = viewModel.errorMessage {
                     ContentUnavailableView("Error", systemImage: "exclamationmark.triangle", description: Text(error))
+                } else if viewModel.selectedWorkflow == nil {
+                    diseaseSelectionPrompt
+                } else if let stats = viewModel.stats {
+                    if stats.total == 0 {
+                        ContentUnavailableView("No Data", systemImage: "chart.pie", description: Text("No test results with patient information are available for this workflow."))
+                    } else {
+                        statsContent(stats)
+                    }
                 } else {
-                    ContentUnavailableView("No Data", systemImage: "chart.pie", description: Text("No statistics available yet"))
+                    diseaseSelectionPrompt
                 }
             }
             .navigationTitle("Statistics")
-            .task {
-                await viewModel.loadStats()
-            }
-            .refreshable {
+            .task(id: viewModel.selectedWorkflowId) {
                 await viewModel.loadStats()
             }
         }
     }
 
-    // MARK: - Main content
-
     private func statsContent(_ stats: GlobalStats) -> some View {
         ScrollView {
             VStack(spacing: 24) {
+                workflowSelectionSection
                 overviewSection(stats)
                 distributionChart(stats)
                 dimensionSections(stats)
@@ -54,7 +52,55 @@ struct StatisticsView: View {
         }
     }
 
-    // MARK: - Overview cards
+    private var diseaseSelectionPrompt: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                workflowSelectionSection
+                ContentUnavailableView("Select a Workflow", systemImage: "chart.pie", description: Text("Choose a disease workflow to view aggregated statistics."))
+            }
+            .padding()
+        }
+    }
+
+    private var workflowSelectionSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Disease Workflows")
+                .font(.headline)
+
+            ForEach(DiseaseWorkflow.groupedByCategory(), id: \.category) { group in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(group.category)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    ForEach(group.items) { workflow in
+                        Button {
+                            viewModel.selectWorkflow(workflow.id)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(workflow.label)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                    Text(workflow.species.displayName)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: viewModel.selectedWorkflowId == workflow.id ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(viewModel.selectedWorkflowId == workflow.id ? Color.accentColor : Color.secondary.opacity(0.4))
+                            }
+                            .padding()
+                            .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
 
     private func overviewSection(_ stats: GlobalStats) -> some View {
         VStack(spacing: 12) {
@@ -93,8 +139,6 @@ struct StatisticsView: View {
         }
     }
 
-    // MARK: - Overall distribution donut
-
     private func distributionChart(_ stats: GlobalStats) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Result Distribution")
@@ -118,7 +162,6 @@ struct StatisticsView: View {
             }
             .frame(height: 220)
 
-            // Legend
             HStack(spacing: 16) {
                 ForEach(GlobalStats.displayCategories, id: \.self) { category in
                     HStack(spacing: 4) {
@@ -136,8 +179,6 @@ struct StatisticsView: View {
         .padding()
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
     }
-
-    // MARK: - Dimension sections (per-category pie charts)
 
     private func dimensionSections(_ stats: GlobalStats) -> some View {
         ForEach(pieDimensions, id: \.self) { key in
@@ -188,7 +229,6 @@ struct StatisticsView: View {
             }
             .frame(height: 200)
 
-            // Legend
             FlowLayout(spacing: 8) {
                 ForEach(Array(sorted.enumerated()), id: \.element.key) { index, item in
                     HStack(spacing: 4) {
@@ -206,13 +246,11 @@ struct StatisticsView: View {
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    // MARK: - Zip Code section
-
     @ViewBuilder
     private func zipCodeSection(_ stats: GlobalStats) -> some View {
-        if let zipData = stats.dimensions["zip_code"], !isDimensionEmpty(zipData) {
+        if let zipData = stats.dimensions["area_code"], !isDimensionEmpty(zipData) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Zip Code")
+                Text("Geographic Distribution")
                     .font(.headline)
 
                 let mapData = transformZipData(zipData)
@@ -223,9 +261,6 @@ struct StatisticsView: View {
         }
     }
 
-    /// Transform dimension data into per-zip-code format for the map.
-    /// Input:  { "Positive L": { "43215": 2 }, "Positive I": { "43215": 1 } }
-    /// Output: { "43215": { "Positive L": 2, "Positive I": 1, "Positive L+I": 0 } }
     private func transformZipData(_ data: [String: [String: Int]]) -> [String: [String: Int]] {
         var result: [String: [String: Int]] = [:]
         for category in pieCategories {
@@ -235,7 +270,6 @@ struct StatisticsView: View {
                 }
             }
         }
-        // Ensure all categories present per zip
         for zip in result.keys {
             for category in pieCategories {
                 if result[zip]?[category] == nil {
@@ -246,26 +280,26 @@ struct StatisticsView: View {
         return result
     }
 
-    // MARK: - Helpers
-
     private func isDimensionEmpty(_ data: [String: [String: Int]]) -> Bool {
         data.values.allSatisfy { $0.isEmpty }
     }
 
     private func categoryColor(_ category: String) -> Color {
         switch category {
-        case "Negative": .green
-        case "Positive L": .red
-        case "Positive I": .orange
-        case "Positive L+I": .purple
-        default: .gray
+        case "Negative":
+            return .green
+        case "Positive L":
+            return .red
+        case "Positive I":
+            return .orange
+        case "Positive L+I":
+            return .purple
+        default:
+            return .gray
         }
     }
 }
 
-// MARK: - Flow Layout for legends
-
-/// Simple wrapping layout for legend items.
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
