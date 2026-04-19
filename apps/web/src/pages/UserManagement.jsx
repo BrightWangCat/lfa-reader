@@ -18,6 +18,7 @@ import {
 } from "@ant-design/icons";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { formatEasternDate } from "../utils/dateFormat";
 
 const { Title } = Typography;
 
@@ -113,13 +114,7 @@ export default function UserManagement() {
       title: "Registered",
       dataIndex: "created_at",
       key: "created_at",
-      render: (val) =>
-        new Date(val).toLocaleDateString("en-US", {
-          timeZone: "America/New_York",
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }),
+      render: (val) => formatEasternDate(val),
     },
     {
       title: "Actions",

@@ -17,6 +17,7 @@ import {
   PlusOutlined,
 } from "@ant-design/icons";
 import { listImages, deleteImage } from "../services/api";
+import { formatEasternDateTime } from "../utils/dateFormat";
 
 const { Title } = Typography;
 
@@ -60,17 +61,6 @@ export default function History() {
       setDeletingId(null);
     }
   };
-
-  const formatDate = (dateStr) =>
-    new Date(dateStr).toLocaleString("en-US", {
-      timeZone: "America/New_York",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
 
   const renderResultTag = (record) => {
     const final = record.manual_correction || record.cv_result;
@@ -142,7 +132,7 @@ export default function History() {
       key: "date",
       width: 230,
       responsive: ["lg"],
-      render: (date) => formatDate(date),
+      render: (date) => formatEasternDateTime(date),
     },
     {
       title: "Uploaded By",

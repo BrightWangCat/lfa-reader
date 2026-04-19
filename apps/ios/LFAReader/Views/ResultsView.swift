@@ -124,8 +124,9 @@ struct ResultsView: View {
             }
 
             HStack(spacing: 10) {
-                Label(image.createdAt.formattedDate, systemImage: "clock")
+                Text(image.createdAt.formattedDate)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
 
                 if image.manualCorrection != nil {
                     capsuleLabel(text: "Corrected", tint: .orange)

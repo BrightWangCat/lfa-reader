@@ -35,6 +35,7 @@ import {
   buildImageFileUrl,
 } from "../services/api";
 import { resolveWarning } from "../locales/warnings";
+import { formatEasternDateTime } from "../utils/dateFormat";
 
 const { useBreakpoint } = Grid;
 const { Title, Text } = Typography;
@@ -251,7 +252,7 @@ export default function Results() {
           </Title>
           <Text type="secondary">
             Image #{image.id} {" \u00b7 "}
-            Uploaded {new Date(image.created_at).toLocaleString()}
+            Uploaded {formatEasternDateTime(image.created_at)}
           </Text>
         </div>
         <Space wrap size={isMobile ? "small" : "middle"}>
