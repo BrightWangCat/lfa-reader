@@ -109,6 +109,7 @@ private struct WorkflowStatisticsDetailView: View {
             VStack(spacing: 24) {
                 workflowHeader
                 overviewSection(stats)
+                weeklyTrendSection(stats)
                 distributionChart(stats)
                 dimensionSections(stats)
                 geographicSection(stats)
@@ -165,6 +166,65 @@ private struct WorkflowStatisticsDetailView: View {
                     .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 10))
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func weeklyTrendSection(_ stats: GlobalStats) -> some View {
+        if !stats.weeklyTrends.isEmpty {
+            let positiveRows = weeklyPositiveRows(stats)
+            let temperatureRows = weeklyTemperatureRows(stats)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Weekly Positive Results and Columbus Temperature")
+                    .font(.headline)
+                Text("Last 12 Sunday-Saturday weeks, Columbus, OH average temperature in °F")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Chart(positiveRows) { row in
+                    BarMark(
+                        x: .value("Week", row.weekLabel),
+                        y: .value("Positive tests", row.count)
+                    )
+                    .foregroundStyle(by: .value("Result", row.category))
+                    .position(by: .value("Result", row.category))
+                }
+                .chartForegroundStyleScale(
+                    domain: GlobalStats.positiveCategories,
+                    range: GlobalStats.positiveCategories.map { categoryColor($0) }
+                )
+                .chartXAxis {
+                    AxisMarks(values: .automatic(desiredCount: 6))
+                }
+                .chartYAxisLabel("Positive tests")
+                .frame(height: 220)
+
+                if !temperatureRows.isEmpty {
+                    Chart(temperatureRows) { row in
+                        LineMark(
+                            x: .value("Week", row.weekLabel),
+                            y: .value("Avg Temp °F", row.temperature)
+                        )
+                        .foregroundStyle(.blue)
+                        .symbol(Circle())
+                        .interpolationMethod(.catmullRom)
+                    }
+                    .chartXAxis {
+                        AxisMarks(values: .automatic(desiredCount: 6))
+                    }
+                    .chartYAxisLabel("Avg Temp °F")
+                    .frame(height: 120)
+                }
+
+                if let temperatureError = stats.temperatureError {
+                    Label(temperatureError, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+            .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
         }
     }
 
@@ -310,6 +370,25 @@ private struct WorkflowStatisticsDetailView: View {
         data.values.allSatisfy { $0.isEmpty }
     }
 
+    private func weeklyPositiveRows(_ stats: GlobalStats) -> [WeeklyPositiveRow] {
+        stats.weeklyTrends.flatMap { trend in
+            GlobalStats.positiveCategories.map { category in
+                WeeklyPositiveRow(
+                    weekLabel: trend.label,
+                    category: category,
+                    count: trend.positiveCounts[category] ?? 0
+                )
+            }
+        }
+    }
+
+    private func weeklyTemperatureRows(_ stats: GlobalStats) -> [WeeklyTemperatureRow] {
+        stats.weeklyTrends.compactMap { trend in
+            guard let temperature = trend.avgTemperatureF else { return nil }
+            return WeeklyTemperatureRow(weekLabel: trend.label, temperature: temperature)
+        }
+    }
+
     private func categoryColor(_ category: String) -> Color {
         switch category {
         case "Negative":
@@ -324,6 +403,21 @@ private struct WorkflowStatisticsDetailView: View {
             return .gray
         }
     }
+}
+
+private struct WeeklyPositiveRow: Identifiable {
+    let weekLabel: String
+    let category: String
+    let count: Int
+
+    var id: String { "\(weekLabel)-\(category)" }
+}
+
+private struct WeeklyTemperatureRow: Identifiable {
+    let weekLabel: String
+    let temperature: Double
+
+    var id: String { weekLabel }
 }
 
 struct FlowLayout: Layout {

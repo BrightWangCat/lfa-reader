@@ -183,6 +183,11 @@ export default function Statistics() {
             ))}
           </Row>
 
+          <WeeklyTrendChart
+            weeklyTrends={data.weekly_trends}
+            temperatureError={data.temperature_error}
+          />
+
           {Object.entries(DIMENSION_LABELS)
             .filter(([dimKey]) => dimKey !== "disease_category")
             .map(([dimKey, dimLabel]) => (
@@ -237,6 +242,216 @@ function ZipCodeMapSection({ zipDimensionData }) {
 }
 
 const PIE_CATEGORIES = CATEGORIES.filter((cat) => cat !== "Negative");
+const TEMPERATURE_COLOR = "#2b6cb0";
+
+function WeeklyTrendChart({ weeklyTrends = [], temperatureError }) {
+  if (!weeklyTrends.length) return null;
+
+  const temperatureData = weeklyTrends
+    .filter((week) => week.avg_temperature_f !== null && week.avg_temperature_f !== undefined)
+    .map((week) => ({
+      week: week.label,
+      temperature: week.avg_temperature_f,
+    }));
+
+  return (
+    <div style={{ marginBottom: 32 }}>
+      <Title level={4} style={{ color: "#1a365d", marginBottom: 8 }}>
+        Weekly Positive Results and Columbus Temperature
+      </Title>
+      <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
+        Last 12 Sunday-Saturday weeks, Columbus, OH average temperature in °F
+      </Text>
+      <Card styles={{ body: { padding: "16px 16px 10px" } }}>
+        <WeeklyTrendSvg
+          weeklyTrends={weeklyTrends}
+          temperatureData={temperatureData}
+        />
+        {temperatureError && (
+          <Alert
+            type="warning"
+            showIcon
+            message={temperatureError}
+            style={{ marginTop: 12 }}
+          />
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function WeeklyTrendSvg({ weeklyTrends, temperatureData }) {
+  const width = 720;
+  const height = 320;
+  const margin = { top: 24, right: 58, bottom: 48, left: 46 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  const plotBottom = margin.top + plotHeight;
+  const maxCount = Math.max(
+    1,
+    ...weeklyTrends.flatMap((week) =>
+      PIE_CATEGORIES.map((category) => week.positive_counts?.[category] || 0)
+    )
+  );
+  const temperatures = temperatureData.map((point) => point.temperature);
+  const hasTemperature = temperatures.length > 0;
+  const minTemperature = hasTemperature ? Math.min(...temperatures) : 0;
+  const maxTemperature = hasTemperature ? Math.max(...temperatures) : 1;
+  const tempPadding = Math.max((maxTemperature - minTemperature) * 0.15, 2);
+  const tempMin = minTemperature - tempPadding;
+  const tempMax = maxTemperature + tempPadding;
+  const xStep = plotWidth / weeklyTrends.length;
+  const groupWidth = xStep * 0.66;
+  const barWidth = groupWidth / PIE_CATEGORIES.length;
+  const gridLines = [0, 1, 2, 3, 4];
+  const temperatureByWeek = new Map(
+    temperatureData.map((point) => [point.week, point.temperature])
+  );
+
+  const xCenter = (weekIndex) => margin.left + xStep * weekIndex + xStep / 2;
+  const countY = (count) => plotBottom - (count / maxCount) * plotHeight;
+  const temperatureY = (temperature) =>
+    plotBottom - ((temperature - tempMin) / (tempMax - tempMin)) * plotHeight;
+
+  const linePoints = weeklyTrends
+    .map((week, index) => {
+      const temperature = temperatureByWeek.get(week.label);
+      if (temperature === undefined) return null;
+      return `${xCenter(index)},${temperatureY(temperature)}`;
+    })
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center", marginBottom: 12 }}>
+        {PIE_CATEGORIES.map((category) => (
+          <LegendItem key={category} color={CATEGORY_COLORS[category]} label={category} />
+        ))}
+        {hasTemperature && (
+          <LegendItem color={TEMPERATURE_COLOR} label="Avg Temp °F" line />
+        )}
+      </div>
+      <svg
+        role="img"
+        aria-label="Weekly positive result counts and Columbus average temperature"
+        viewBox={`0 0 ${width} ${height}`}
+        style={{ width: "100%", height: "auto", display: "block" }}
+      >
+        <text x={margin.left} y={14} fill="#718096" fontSize="12">Positive tests</text>
+        {hasTemperature && (
+          <text x={width - margin.right + 4} y={14} fill="#718096" fontSize="12">°F</text>
+        )}
+        {gridLines.map((line) => {
+          const ratio = line / (gridLines.length - 1);
+          const y = margin.top + ratio * plotHeight;
+          const countLabel = Math.round(maxCount * (1 - ratio));
+          const tempLabel = tempMax - (tempMax - tempMin) * ratio;
+          return (
+            <g key={line}>
+              <line
+                x1={margin.left}
+                x2={width - margin.right}
+                y1={y}
+                y2={y}
+                stroke="#edf2f7"
+              />
+              <text x={margin.left - 10} y={y + 4} textAnchor="end" fill="#718096" fontSize="11">
+                {countLabel}
+              </text>
+              {hasTemperature && (
+                <text x={width - margin.right + 10} y={y + 4} fill="#718096" fontSize="11">
+                  {tempLabel.toFixed(0)}
+                </text>
+              )}
+            </g>
+          );
+        })}
+        <line x1={margin.left} x2={margin.left} y1={margin.top} y2={plotBottom} stroke="#cbd5e0" />
+        <line x1={margin.left} x2={width - margin.right} y1={plotBottom} y2={plotBottom} stroke="#cbd5e0" />
+
+        {weeklyTrends.map((week, weekIndex) => {
+          const groupX = xCenter(weekIndex) - groupWidth / 2;
+          return (
+            <g key={week.week_start}>
+              {PIE_CATEGORIES.map((category, categoryIndex) => {
+                const count = week.positive_counts?.[category] || 0;
+                const x = groupX + categoryIndex * barWidth;
+                const y = countY(count);
+                const barHeight = plotBottom - y;
+                return (
+                  <rect
+                    key={category}
+                    x={x}
+                    y={y}
+                    width={Math.max(barWidth - 2, 1)}
+                    height={barHeight}
+                    rx="2"
+                    fill={CATEGORY_COLORS[category]}
+                  />
+                );
+              })}
+              <text
+                x={xCenter(weekIndex)}
+                y={plotBottom + 20}
+                textAnchor="middle"
+                fill="#718096"
+                fontSize="11"
+              >
+                {week.label}
+              </text>
+            </g>
+          );
+        })}
+
+        {hasTemperature && linePoints && (
+          <>
+            <polyline
+              points={linePoints}
+              fill="none"
+              stroke={TEMPERATURE_COLOR}
+              strokeWidth="3"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            {weeklyTrends.map((week, index) => {
+              const temperature = temperatureByWeek.get(week.label);
+              if (temperature === undefined) return null;
+              return (
+                <circle
+                  key={week.week_start}
+                  cx={xCenter(index)}
+                  cy={temperatureY(temperature)}
+                  r="4"
+                  fill={TEMPERATURE_COLOR}
+                  stroke="#ffffff"
+                  strokeWidth="1.5"
+                />
+              );
+            })}
+          </>
+        )}
+      </svg>
+    </div>
+  );
+}
+
+function LegendItem({ color, label, line = false }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#4a5568", fontSize: 12 }}>
+      <span
+        style={{
+          width: line ? 18 : 10,
+          height: line ? 3 : 10,
+          background: color,
+          borderRadius: line ? 2 : 3,
+          display: "inline-block",
+        }}
+      />
+      {label}
+    </span>
+  );
+}
 
 function DimensionSection({ dimensionLabel, dimensionData }) {
   if (!dimensionData) return null;

@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models import User, Image
 from app.auth import get_current_user
 from app.schemas import DISEASE_LABELS
+from app.services.weekly_trends import build_weekly_trends
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
@@ -57,6 +58,7 @@ def get_global_stats(
     )
 
     categorized = []
+    weekly_records = []
     for img in images:
         pi = img.patient_info
         if disease_category is not None and pi.disease_category != disease_category:
@@ -64,6 +66,9 @@ def get_global_stats(
         final = img.manual_correction or img.cv_result
         if final in STAT_CATEGORIES:
             categorized.append((final, pi))
+            weekly_records.append((final, img.created_at))
+
+    weekly_trends, temperature_error = build_weekly_trends(weekly_records)
 
     total = len(categorized)
     if total == 0:
@@ -74,6 +79,8 @@ def get_global_stats(
                 dim: {cat: {} for cat in STAT_CATEGORIES}
                 for dim in PATIENT_DIMENSIONS
             },
+            "weekly_trends": weekly_trends,
+            "temperature_error": temperature_error,
         }
 
     category_totals = {cat: 0 for cat in STAT_CATEGORIES}
@@ -100,4 +107,6 @@ def get_global_stats(
         "total": total,
         "category_totals": category_totals,
         "dimensions": dimensions,
+        "weekly_trends": weekly_trends,
+        "temperature_error": temperature_error,
     }
