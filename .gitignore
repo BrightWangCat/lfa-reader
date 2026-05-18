@@ -21,6 +21,7 @@ uploads/
 # Logs
 *.log
 tmp/
+.superpowers/
 
 # Node
 node_modules/
