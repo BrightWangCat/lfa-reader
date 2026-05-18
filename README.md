@@ -6,30 +6,32 @@ An automated reading and classification system for **veterinary lateral flow ass
 - **Tick Borne** for dogs
 - **Canine Urothelial Carcinoma** for dogs
 
-The current product uses a **single-image, image-based workflow** across both the web app and the native iOS app. Each uploaded image can be preprocessed, classified, manually corrected, and reviewed together with workflow-specific patient metadata.
+The current product uses a **single-image, image-based workflow** across both the web app and the native iOS app. Each uploaded image can be preprocessed, classified, manually corrected, and reviewed together with workflow-specific patient metadata. Global statistics summarize per-disease results, patient metadata distributions, weekly positive-result trends, Columbus temperature context, and area-code level geographic patterns.
 
 The source code is published under a **source-available, noncommercial** license.
 This repository is **not** distributed under an OSI-approved open source license.
-
-**Live Demo**: https://16.59.11.102:8080  
-The site uses a self-signed certificate, so browsers will show a warning the first time you open it.
 
 ## Highlights
 
 | Feature | Web | iOS |
 |---------|:---:|:---:|
-| Camera capture with scan-guide overlay | ✅ | ✅ |
-| Photo library upload | ✅ | ✅ |
-| Workflow-first single-image upload flow | ✅ | ✅ |
-| Disease workflow selection | ✅ | ✅ |
-| Automatic image preprocessing | ✅ | ✅ |
-| OpenCV classification | ✅ | ✅ |
-| Manual correction override | ✅ | ✅ |
-| Backend-generated advisories | ✅ | ✅ |
-| User-facing timestamps normalized to US Eastern Time (`ET`) | ✅ | ✅ |
-| Statistics dashboard with per-disease filtering | ✅ | ✅ |
-| Area code geographic heatmap | ✅ | ✅ |
-| Admin user management | ✅ | — |
+| Camera capture with scan-guide overlay | Yes | Yes |
+| Photo library upload | Yes | Yes |
+| Workflow-first single-image upload flow | Yes | Yes |
+| Disease workflow selection | Yes | Yes |
+| Workflow-specific patient metadata capture | Yes | Yes |
+| Tick Borne preventive-treatment metadata | Yes | Yes |
+| Automatic image preprocessing | Yes | Yes |
+| OpenCV classification | Yes | Yes |
+| Manual correction override | Yes | Yes |
+| Backend-generated advisories | Yes | Yes |
+| User-facing timestamps normalized to US Eastern Time (`ET`) | Yes | Yes |
+| Statistics dashboard with per-disease filtering | Yes | Yes |
+| Weekly positive-result trend charts | Yes | Yes |
+| Columbus temperature context for weekly trends | Yes | Yes |
+| Patient metadata distribution charts | Yes | Yes |
+| Area code geographic heatmap | Yes | Yes |
+| Admin user management | Yes | No |
 
 ### Classification Categories
 
@@ -49,6 +51,7 @@ The site uses a self-signed certificate, so browsers will show a warning the fir
 | **Computer Vision** | OpenCV headless, LAB color-space band detection |
 | **Database** | SQLite |
 | **Auth** | JWT via python-jose, bcrypt via passlib |
+| **Weather Data** | Open-Meteo Historical Weather API |
 
 ## Quick Start
 
