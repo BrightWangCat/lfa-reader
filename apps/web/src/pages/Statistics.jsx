@@ -14,6 +14,7 @@ import {
 import { Pie } from "@ant-design/charts";
 import api from "../services/api";
 import ZipCodeMap from "../components/ZipCodeMap";
+import { getVisibleDimensionEntries } from "./statisticsDimensions";
 import diseases from "@shared/data/diseases.json";
 
 const { Title, Text } = Typography;
@@ -64,6 +65,10 @@ export default function Statistics() {
         items: diseases.filter((disease) => disease.category === category),
       })),
     []
+  );
+  const visibleDimensionEntries = useMemo(
+    () => getVisibleDimensionEntries(DIMENSION_LABELS, selectedDisease),
+    [selectedDisease]
   );
 
   useEffect(() => {
@@ -188,9 +193,7 @@ export default function Statistics() {
             temperatureError={data.temperature_error}
           />
 
-          {Object.entries(DIMENSION_LABELS)
-            .filter(([dimKey]) => dimKey !== "disease_category")
-            .map(([dimKey, dimLabel]) => (
+          {visibleDimensionEntries.map(([dimKey, dimLabel]) => (
             <DimensionSection
               key={dimKey}
               dimensionLabel={dimLabel}
