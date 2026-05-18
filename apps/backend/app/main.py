@@ -181,6 +181,24 @@ def _migrate_drop_batch_model(eng):
 _migrate_drop_batch_model(engine)
 
 
+def _migrate_images_result_detail_fields(eng):
+    if "images" not in sa_inspect(eng).get_table_names():
+        return
+    columns = [c["name"] for c in sa_inspect(eng).get_columns("images")]
+    with eng.begin() as conn:
+        if "cv_result_detail" not in columns:
+            conn.execute(text(
+                "ALTER TABLE images ADD COLUMN cv_result_detail TEXT"
+            ))
+        if "manual_correction_detail" not in columns:
+            conn.execute(text(
+                "ALTER TABLE images ADD COLUMN manual_correction_detail TEXT"
+            ))
+
+
+_migrate_images_result_detail_fields(engine)
+
+
 # Adds the disease-workflow columns introduced with the three-disease expansion
 # (FIV/FeLV, Tick Borne, Canine Urothelial Carcinoma). Idempotent:
 #   - images.warnings: JSON string of warning keys computed server-side.

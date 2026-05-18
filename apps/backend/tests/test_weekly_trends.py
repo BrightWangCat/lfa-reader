@@ -25,13 +25,20 @@ class WeeklyTrendTests(unittest.TestCase):
             ("Positive L", datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)),
             ("Positive I", datetime(2026, 5, 11, 12, 0, tzinfo=timezone.utc)),
             ("Positive L+I", datetime(2026, 5, 17, 12, 0, tzinfo=timezone.utc)),
+            ("Positive: Lyme", datetime(2026, 5, 17, 13, 0, tzinfo=timezone.utc)),
             ("Negative", datetime(2026, 5, 17, 12, 0, tzinfo=timezone.utc)),
         ]
 
         counts = aggregate_weekly_counts(records, windows)
 
-        self.assertEqual(counts[0], {"Positive L": 1, "Positive I": 1, "Positive L+I": 0})
-        self.assertEqual(counts[1], {"Positive L": 0, "Positive I": 0, "Positive L+I": 1})
+        self.assertEqual(
+            counts[0],
+            {"Positive": 0, "Positive L": 1, "Positive I": 1, "Positive L+I": 0},
+        )
+        self.assertEqual(
+            counts[1],
+            {"Positive": 1, "Positive L": 0, "Positive I": 0, "Positive L+I": 1},
+        )
 
     def test_combine_weekly_trends_averages_temperature_by_week(self):
         windows = build_week_windows(today=date(2026, 5, 18), week_count=1)

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import {
   Card,
@@ -65,6 +65,45 @@ const CATEGORIES = [
   "Invalid",
 ];
 
+const TICK_BORNE_ANALYTES = [
+  ["ehrlichia", "Ehrlichia"],
+  ["lyme", "Lyme"],
+  ["anaplasma", "Anaplasma"],
+  ["heartworm", "Heartworm"],
+];
+
+const buildTickBorneCorrectionOptions = () => {
+  const options = [{ value: "Negative", label: "Negative" }];
+  const count = TICK_BORNE_ANALYTES.length;
+  for (let mask = 1; mask < (1 << count); mask += 1) {
+    const labels = TICK_BORNE_ANALYTES
+      .filter((_, index) => mask & (1 << index))
+      .map(([, label]) => label);
+    const value = `Positive: ${labels.join(", ")}`;
+    options.push({ value, label: value });
+  }
+  options.push({ value: "Invalid", label: "Invalid" });
+  return options;
+};
+
+const correctionOptionsForImage = (image) => {
+  if (image?.patient_info?.disease_category === "Tick Borne") {
+    return buildTickBorneCorrectionOptions();
+  }
+  return CATEGORIES.map((cat) => ({ value: cat, label: cat }));
+};
+
+const detailForImage = (image) =>
+  image?.manual_correction_detail || image?.cv_result_detail || null;
+
+const analyteRowsForImage = (image) => {
+  const detail = detailForImage(image);
+  if (!detail?.analytes) return [];
+  return TICK_BORNE_ANALYTES
+    .filter(([key]) => Object.prototype.hasOwnProperty.call(detail.analytes, key))
+    .map(([key, label]) => [label, detail.analytes[key]]);
+};
+
 export default function Results() {
   const [searchParams] = useSearchParams();
   const imageId = searchParams.get("image");
@@ -87,6 +126,17 @@ export default function Results() {
 
   const [showOriginal, setShowOriginal] = useState(false);
 
+  const fetchImage = useCallback(async () => {
+    try {
+      const res = await getImage(imageId);
+      setImage(res.data);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to load image");
+    } finally {
+      setLoading(false);
+    }
+  }, [imageId]);
+
   useEffect(() => {
     if (!imageId) {
       setError("No image specified");
@@ -94,7 +144,7 @@ export default function Results() {
       return;
     }
     fetchImage();
-  }, [imageId]);
+  }, [imageId, fetchImage]);
 
   useEffect(() => {
     if (image) {
@@ -125,18 +175,7 @@ export default function Results() {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [classifyStatus, imageId]);
-
-  const fetchImage = async () => {
-    try {
-      const res = await getImage(imageId);
-      setImage(res.data);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Failed to load image");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [classifyStatus, imageId, fetchImage]);
 
   const startEdit = () => {
     setEditing(true);
@@ -410,6 +449,36 @@ export default function Results() {
           ]}
         />
 
+        {analyteRowsForImage(image).length > 0 && (
+          <div
+            style={{
+              border: "1px solid #e2e8f0",
+              borderRadius: 8,
+              padding: 12,
+              marginBottom: 16,
+              background: "#fbfdff",
+            }}
+          >
+            <Text strong style={{ display: "block", marginBottom: 8, fontSize: 13 }}>
+              Tick Borne Panel
+            </Text>
+            {analyteRowsForImage(image).map(([label, value]) => (
+              <div
+                key={label}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "4px 0",
+                  fontSize: 13,
+                }}
+              >
+                <Text type="secondary">{label}</Text>
+                <Tag color={value === "Positive" ? "red" : "green"}>{value}</Tag>
+              </div>
+            ))}
+          </div>
+        )}
+
         {image.patient_info && (
           <Collapse
             ghost
@@ -453,7 +522,7 @@ export default function Results() {
               value={correctionValue || undefined}
               onChange={setCorrectionValue}
               placeholder="Select category"
-              options={CATEGORIES.map((cat) => ({ value: cat, label: cat }))}
+              options={correctionOptionsForImage(image)}
               style={{ width: "100%", marginBottom: 8 }}
             />
             <Space style={{ width: "100%" }}>

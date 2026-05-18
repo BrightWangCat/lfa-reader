@@ -5,18 +5,10 @@ from app.database import get_db
 from app.models import User, Image
 from app.auth import get_current_user
 from app.schemas import DISEASE_LABELS
+from app.services.result_categories import STAT_CATEGORIES, normalize_result_category
 from app.services.weekly_trends import build_weekly_trends
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
-
-# Valid classifications included in stats (Invalid is intentionally excluded
-# because it means the reader did not produce a diagnostic answer).
-STAT_CATEGORIES = [
-    "Negative",
-    "Positive L",
-    "Positive I",
-    "Positive L+I",
-]
 
 # PatientInfo dimensions surfaced on the Statistics page.
 PATIENT_DIMENSIONS = [
@@ -64,8 +56,9 @@ def get_global_stats(
         if disease_category is not None and pi.disease_category != disease_category:
             continue
         final = img.manual_correction or img.cv_result
-        if final in STAT_CATEGORIES:
-            categorized.append((final, pi))
+        normalized = normalize_result_category(final)
+        if normalized in STAT_CATEGORIES:
+            categorized.append((normalized, pi))
             weekly_records.append((final, img.created_at))
 
     weekly_trends, temperature_error = build_weekly_trends(weekly_records)

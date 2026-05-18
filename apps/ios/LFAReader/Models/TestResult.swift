@@ -23,7 +23,18 @@ func resultColor(for result: String) -> Color {
     if let category = ClassificationCategory(rawValue: result) {
         return category.color
     }
+    if result.hasPrefix("Positive:") || result == "Positive" {
+        return .red
+    }
     return .secondary
+}
+
+struct ClassificationDetail: Codable {
+    let workflow: String?
+    let overall: String?
+    let control: String?
+    let analytes: [String: String]?
+    let confidence: String?
 }
 
 /// Represents a single test image returned by the detail endpoint.
@@ -36,7 +47,9 @@ struct TestImage: Codable, Identifiable {
     let isPreprocessed: Bool
     var cvResult: String?
     var cvConfidence: String?
+    var cvResultDetail: ClassificationDetail?
     var manualCorrection: String?
+    var manualCorrectionDetail: ClassificationDetail?
     var readingStatus: String?
     var readingError: String?
     let warnings: [String]
@@ -52,7 +65,9 @@ struct TestImage: Codable, Identifiable {
         case isPreprocessed = "is_preprocessed"
         case cvResult = "cv_result"
         case cvConfidence = "cv_confidence"
+        case cvResultDetail = "cv_result_detail"
         case manualCorrection = "manual_correction"
+        case manualCorrectionDetail = "manual_correction_detail"
         case readingStatus = "reading_status"
         case readingError = "reading_error"
         case warnings
@@ -63,6 +78,10 @@ struct TestImage: Codable, Identifiable {
     /// The final result: manual correction takes priority over CV result
     var finalResult: String? {
         manualCorrection ?? cvResult
+    }
+
+    var finalResultDetail: ClassificationDetail? {
+        manualCorrectionDetail ?? cvResultDetail
     }
 }
 

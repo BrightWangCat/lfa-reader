@@ -33,13 +33,13 @@ This repository is **not** distributed under an OSI-approved open source license
 | Area code geographic heatmap | Yes | Yes |
 | Admin user management | Yes | No |
 
-### Classification Categories
+### Classification Output
 
-- **Negative**: control (`C`) band only
-- **Positive L**: `C` + `L` band
-- **Positive I**: `C` + `I` band
-- **Positive L+I**: `C` + both `L` and `I` bands
-- **Invalid**: no valid control band detected
+Classification is workflow-specific:
+
+- **FIV/FeLV**: `Negative`, `Positive L`, `Positive I`, `Positive L+I`, or `Invalid`
+- **Tick Borne**: per-analyte Ehrlichia, Lyme, Anaplasma, and Heartworm results with a summary such as `Positive: Lyme` or `Negative`
+- **Invalid**: no valid workflow control signal detected
 
 ## Tech Stack
 

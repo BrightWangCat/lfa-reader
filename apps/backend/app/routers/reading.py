@@ -6,16 +6,14 @@ from app.database import get_db, SessionLocal
 from app.models import User, Image
 from app.auth import get_current_user
 from app.services import cv_inference
+from app.services.result_categories import (
+    FIV_FELV_CATEGORIES,
+    is_valid_manual_correction,
+)
 
 router = APIRouter(prefix="/api/readings", tags=["readings"])
 
-VALID_CATEGORIES = [
-    "Negative",
-    "Positive L",
-    "Positive I",
-    "Positive L+I",
-    "Invalid",
-]
+VALID_CATEGORIES = FIV_FELV_CATEGORIES
 
 
 class ManualCorrectionRequest(BaseModel):
@@ -39,10 +37,10 @@ def correct_reading(
     db: Session = Depends(get_db),
 ):
     """Manually correct the reading result for an image."""
-    if body.manual_correction not in VALID_CATEGORIES:
+    if not is_valid_manual_correction(body.manual_correction):
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid category. Must be one of: {', '.join(VALID_CATEGORIES)}",
+            detail="Invalid manual correction category",
         )
 
     image = _load_image(image_id, current_user, db)

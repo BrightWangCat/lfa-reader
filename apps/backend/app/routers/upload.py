@@ -18,7 +18,8 @@ from app.schemas import (
 from app.auth import get_current_user
 from app.config import UPLOAD_DIR
 from app.services.cv_inference import cancel_classification
-from app.services.image_preprocessor import preprocess_cassette, PreprocessingError
+from app.services.classification_dispatcher import preprocess_image_for_workflow
+from app.services.image_preprocessor import PreprocessingError
 from app.services.warnings import compute_warnings, encode_warnings
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
@@ -115,7 +116,7 @@ async def upload_single(
     preprocessed_name = f"pp_{stored_name}"
     preprocessed_path = os.path.join(image_dir, preprocessed_name)
     try:
-        preprocess_cassette(file_path, preprocessed_path)
+        preprocess_image_for_workflow(file_path, preprocessed_path, disease_category)
     except PreprocessingError as e:
         if os.path.exists(image_dir):
             shutil.rmtree(image_dir)

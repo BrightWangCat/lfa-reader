@@ -30,7 +30,9 @@ class Image(Base):
     is_preprocessed = Column(Boolean, default=False, nullable=False)
     cv_result = Column(String, nullable=True)
     cv_confidence = Column(String, nullable=True)
+    cv_result_detail = Column(String, nullable=True)
     manual_correction = Column(String, nullable=True)
+    manual_correction_detail = Column(String, nullable=True)
     # Per-image CV classification status: None / "running" / "completed" / "failed"
     reading_status = Column(String, nullable=True, default=None)
     reading_error = Column(String, nullable=True, default=None)

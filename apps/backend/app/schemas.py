@@ -1,7 +1,7 @@
 import json
 import os
 from pydantic import BaseModel, EmailStr, field_validator
-from typing import Optional
+from typing import Any, Optional
 from datetime import datetime
 
 
@@ -110,7 +110,9 @@ class ImageResponse(BaseModel):
     is_preprocessed: bool = False
     cv_result: str | None = None
     cv_confidence: str | None = None
+    cv_result_detail: dict[str, Any] | None = None
     manual_correction: str | None = None
+    manual_correction_detail: dict[str, Any] | None = None
     reading_status: str | None = None
     reading_error: str | None = None
     warnings: list[str] = []
@@ -132,6 +134,19 @@ class ImageResponse(BaseModel):
         except (ValueError, TypeError):
             return []
         return parsed if isinstance(parsed, list) else []
+
+    @field_validator("cv_result_detail", "manual_correction_detail", mode="before")
+    @classmethod
+    def _parse_detail_json(cls, v):
+        if v is None or v == "":
+            return None
+        if isinstance(v, dict):
+            return v
+        try:
+            parsed = json.loads(v)
+        except (ValueError, TypeError):
+            return None
+        return parsed if isinstance(parsed, dict) else None
 
 
 class ImageListItem(BaseModel):

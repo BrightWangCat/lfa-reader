@@ -5,8 +5,12 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
+from app.services.result_categories import (
+    POSITIVE_TREND_CATEGORIES,
+    is_positive_result,
+    normalize_result_category,
+)
 
-POSITIVE_TREND_CATEGORIES = ["Positive L", "Positive I", "Positive L+I"]
 COLUMBUS_LATITUDE = "39.9612"
 COLUMBUS_LONGITUDE = "-82.9988"
 COLUMBUS_TIMEZONE = ZoneInfo("America/New_York")
@@ -43,13 +47,16 @@ def aggregate_weekly_counts(
     ]
 
     for final_result, created_at in records:
-        if final_result not in POSITIVE_TREND_CATEGORIES:
+        if not is_positive_result(final_result):
+            continue
+        category = normalize_result_category(final_result)
+        if category not in POSITIVE_TREND_CATEGORIES:
             continue
 
         created_date = _to_columbus_date(created_at)
         for index, window in enumerate(windows):
             if window["start_date"] <= created_date <= window["end_date"]:
-                weekly_counts[index][final_result] += 1
+                weekly_counts[index][category] += 1
                 break
 
     return weekly_counts

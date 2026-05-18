@@ -100,6 +100,7 @@ class ImageDetailViewModel {
                 image.readingError = nil
                 image.cvResult = nil
                 image.cvConfidence = nil
+                image.cvResultDetail = nil
                 testImage = image
             }
             startPollingIfNeeded()

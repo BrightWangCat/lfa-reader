@@ -19,9 +19,10 @@ import diseases from "@shared/data/diseases.json";
 
 const { Title, Text } = Typography;
 
-const CATEGORIES = ["Negative", "Positive L", "Positive I", "Positive L+I"];
+const CATEGORIES = ["Negative", "Positive", "Positive L", "Positive I", "Positive L+I"];
 const CATEGORY_COLORS = {
   "Negative": "#38a169",
+  "Positive": "#c53030",
   "Positive L": "#e53e3e",
   "Positive I": "#dd6b20",
   "Positive L+I": "#805ad5",
@@ -215,11 +216,11 @@ function ZipCodeMapSection({ zipDimensionData }) {
   const zipData = useMemo(() => {
     if (!zipDimensionData) return {};
     const result = {};
-    for (const cat of ["Positive L", "Positive I", "Positive L+I"]) {
+    for (const cat of PIE_CATEGORIES) {
       const dist = zipDimensionData[cat] || {};
       for (const [zip, count] of Object.entries(dist)) {
         if (!result[zip]) {
-          result[zip] = { "Positive L": 0, "Positive I": 0, "Positive L+I": 0 };
+          result[zip] = Object.fromEntries(PIE_CATEGORIES.map((key) => [key, 0]));
         }
         result[zip][cat] = count;
       }

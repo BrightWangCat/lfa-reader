@@ -165,6 +165,8 @@ struct ImageDetailView: View {
                     .font(.subheadline)
             }
 
+            tickBornePanel(image)
+
             if image.readingStatus == "running" {
                 HStack(spacing: 12) {
                     ProgressView()
@@ -214,8 +216,8 @@ struct ImageDetailView: View {
 
             Picker("Category", selection: $viewModel.selectedCorrection) {
                 Text("Select...").tag("")
-                ForEach(ClassificationCategory.allCases, id: \.rawValue) { category in
-                    Text(category.rawValue).tag(category.rawValue)
+                ForEach(correctionOptions(for: image), id: \.self) { category in
+                    Text(category).tag(category)
                 }
             }
             .pickerStyle(.menu)
@@ -238,6 +240,32 @@ struct ImageDetailView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    @ViewBuilder
+    private func tickBornePanel(_ image: TestImage) -> some View {
+        let rows = tickBorneAnalyteRows(image)
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Tick Borne Panel")
+                    .font(.subheadline.weight(.semibold))
+
+                ForEach(rows, id: \.0) { row in
+                    HStack {
+                        Text(row.0)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        capsuleLabel(
+                            text: row.1,
+                            tint: row.1 == "Positive" ? .red : .green
+                        )
+                    }
+                    .font(.subheadline)
+                }
+            }
+            .padding(12)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+        }
     }
 
     @ViewBuilder
@@ -278,6 +306,41 @@ struct ImageDetailView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func tickBorneAnalyteRows(_ image: TestImage) -> [(String, String)] {
+        guard let analytes = image.finalResultDetail?.analytes else { return [] }
+        let order = [
+            ("ehrlichia", "Ehrlichia"),
+            ("lyme", "Lyme"),
+            ("anaplasma", "Anaplasma"),
+            ("heartworm", "Heartworm"),
+        ]
+        return order.compactMap { item in
+            let (key, label) = item
+            guard let value = analytes[key] else { return nil }
+            return (label, value)
+        }
+    }
+
+    private func correctionOptions(for image: TestImage) -> [String] {
+        if image.patientInfo?.diseaseCategory == "Tick Borne" {
+            return tickBorneCorrectionOptions()
+        }
+        return ClassificationCategory.allCases.map(\.rawValue)
+    }
+
+    private func tickBorneCorrectionOptions() -> [String] {
+        let analytes = ["Ehrlichia", "Lyme", "Anaplasma", "Heartworm"]
+        var options = ["Negative"]
+        for mask in 1..<(1 << analytes.count) {
+            let labels = analytes.enumerated().compactMap { index, label in
+                (mask & (1 << index)) != 0 ? label : nil
+            }
+            options.append("Positive: \(labels.joined(separator: ", "))")
+        }
+        options.append("Invalid")
+        return options
     }
 
     private func formatFileSize(_ bytes: Int) -> String {
