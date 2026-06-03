@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
+from app.role_utils import USER_ROLE
 
 
 class User(Base):
@@ -11,8 +12,8 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    # Role-based access: "single", "admin"
-    role = Column(String, default="single", nullable=False)
+    # Role-based access: "user", "admin"
+    role = Column(String, default=USER_ROLE, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

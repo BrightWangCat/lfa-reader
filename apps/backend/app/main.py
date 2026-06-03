@@ -7,6 +7,7 @@ from sqlalchemy import text, inspect as sa_inspect
 from app.database import engine, Base
 from app.config import UPLOAD_DIR, CORS_ORIGINS
 from app.routers import users, upload, reading, stats
+from app.role_utils import USER_ROLE, migrate_legacy_user_roles
 
 Base.metadata.create_all(bind=engine)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -73,7 +74,7 @@ _migrate_drop_llm_fields(engine)
 # Steps:
 #   1. Add user_id / reading_status / reading_error columns to images (if missing).
 #   2. Backfill those columns from upload_batches via the legacy batch_id link.
-#   3. Migrate users.role 'batch' -> 'single'.
+#   3. Migrate users.role 'batch' -> 'user'.
 #   4. Rebuild images without batch_id (SQLite ALTER TABLE workaround) and
 #      drop upload_batches.
 def _migrate_drop_batch_model(eng):
@@ -119,9 +120,12 @@ def _migrate_drop_batch_model(eng):
                 """
             ))
 
-    # Step 3: collapse the 'batch' role into 'single'
+    # Step 3: collapse the 'batch' role into 'user'
     with eng.begin() as conn:
-        conn.execute(text("UPDATE users SET role='single' WHERE role='batch'"))
+        conn.execute(
+            text("UPDATE users SET role=:user_role WHERE role='batch'"),
+            {"user_role": USER_ROLE},
+        )
 
     # Step 4: rebuild images without batch_id, then drop upload_batches.
     # SQLite cannot drop a column that participates in a FK constraint, so we
@@ -179,6 +183,9 @@ def _migrate_drop_batch_model(eng):
 
 
 _migrate_drop_batch_model(engine)
+
+
+migrate_legacy_user_roles(engine)
 
 
 def _migrate_images_result_detail_fields(eng):

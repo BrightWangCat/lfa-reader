@@ -12,6 +12,7 @@ from app.auth import (
     hash_password, verify_password, create_access_token,
     get_current_user, require_admin,
 )
+from app.role_utils import VALID_USER_ROLES
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -72,9 +73,9 @@ def set_user_role(
 ):
     """Set the role for a user. Admin only.
 
-    Valid roles: single, admin. Cannot change your own role.
+    Valid roles: user, admin. Cannot change your own role.
     """
-    valid_roles = ("single", "admin")
+    valid_roles = VALID_USER_ROLES
     if body.role not in valid_roles:
         raise HTTPException(
             status_code=400,

@@ -12,7 +12,7 @@ struct SettingsView: View {
                     Section("Account") {
                         LabeledContent("Username", value: user.username)
                         LabeledContent("Email", value: user.email)
-                        LabeledContent("Role", value: user.role)
+                        LabeledContent("Role", value: user.displayRole)
                     }
                 }
 

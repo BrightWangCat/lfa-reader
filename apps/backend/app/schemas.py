@@ -4,6 +4,8 @@ from pydantic import BaseModel, EmailStr, field_validator
 from typing import Any, Optional
 from datetime import datetime
 
+from app.role_utils import USER_ROLE
+
 
 # Single source of truth for disease / breed / age enums lives in shared/data/*.json,
 # so web, backend and iOS all agree on the same set.
@@ -38,7 +40,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     username: str
-    role: str = "single"
+    role: str = USER_ROLE
     created_at: datetime
 
     model_config = {"from_attributes": True}

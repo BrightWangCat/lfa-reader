@@ -1,7 +1,7 @@
 """
 Migration script: Convert is_admin (Boolean) column to role (String) column.
 - Users with is_admin=True become role='admin'
-- All other users become role='single'
+- All other users become role='user'
 - The mingshi user is ensured to have role='admin'
 
 Run: python migrate_roles.py
@@ -38,15 +38,15 @@ def migrate():
 
     # Step 1: Add role column
     if "role" not in columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'single'")
-        print("  Added 'role' column with default 'single'")
+        cursor.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
+        print("  Added 'role' column with default 'user'")
 
     # Step 2: Set role based on is_admin value
     cursor.execute("UPDATE users SET role = 'admin' WHERE is_admin = 1")
     admin_count = cursor.rowcount
-    cursor.execute("UPDATE users SET role = 'single' WHERE is_admin = 0 OR is_admin IS NULL")
-    single_count = cursor.rowcount
-    print(f"  Migrated {admin_count} admin(s), {single_count} single user(s)")
+    cursor.execute("UPDATE users SET role = 'user' WHERE is_admin = 0 OR is_admin IS NULL")
+    user_count = cursor.rowcount
+    print(f"  Migrated {admin_count} admin(s), {user_count} user role account(s)")
 
     # Step 3: Ensure mingshi is admin
     cursor.execute("UPDATE users SET role = 'admin' WHERE username = 'mingshi'")
@@ -59,7 +59,7 @@ def migrate():
             email TEXT UNIQUE NOT NULL,
             username TEXT UNIQUE NOT NULL,
             hashed_password TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'single',
+            role TEXT NOT NULL DEFAULT 'user',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)

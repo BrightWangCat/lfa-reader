@@ -19,13 +19,14 @@ import {
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { formatEasternDate } from "../utils/dateFormat";
+import { ROLE_OPTIONS, getRoleDisplay, normalizeRole } from "./userRoles";
 
 const { Title } = Typography;
 
 // Role display configuration
 const roleConfig = {
   admin: { color: "gold", icon: <CrownOutlined />, label: "Admin" },
-  single: { color: "default", icon: <UserOutlined />, label: "Single" },
+  user: { color: "default", icon: <UserOutlined />, label: "User" },
 };
 
 export default function UserManagement() {
@@ -102,10 +103,11 @@ export default function UserManagement() {
       key: "role",
       width: 120,
       render: (_, record) => {
-        const config = roleConfig[record.role] || roleConfig.single;
+        const display = getRoleDisplay(record.role);
+        const config = roleConfig[display.role] || roleConfig.user;
         return (
           <Tag icon={config.icon} color={config.color}>
-            {config.label}
+            {display.label}
           </Tag>
         );
       },
@@ -125,16 +127,13 @@ export default function UserManagement() {
         return (
           <Space>
             <Select
-              value={record.role}
+              value={normalizeRole(record.role)}
               onChange={(value) => handleSetRole(record.id, value)}
               disabled={isSelf}
               loading={actionLoading[record.id]}
               style={{ width: 110 }}
               size="small"
-              options={[
-                { value: "single", label: "Single" },
-                { value: "admin", label: "Admin" },
-              ]}
+              options={ROLE_OPTIONS}
             />
             <Popconfirm
               title="Delete this user?"
