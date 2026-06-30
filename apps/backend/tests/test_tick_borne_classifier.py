@@ -5,10 +5,35 @@ import numpy as np
 
 from app.services.classifiers.tick_borne import (
     ANALYTE_NAMES,
+    ANALYTE_OFFSETS,
+    CONTROL_REF,
+    MEMBRANE_HEIGHT,
+    MEMBRANE_WIDTH,
+    SPOT_RADIUS,
     SpotScore,
     classify_from_spot_scores,
+    classify_result_window,
+    detect_spots,
     score_spot,
 )
+
+
+def _make_membrane(spot_names):
+    """Synthesize an oriented membrane frame with the named spots painted on.
+
+    The control spot is placed at its template position and each analyte at its
+    calibrated offset, so detect_spots should recover exactly the painted set.
+    """
+    img = np.full((MEMBRANE_HEIGHT, MEMBRANE_WIDTH, 3), (205, 203, 200), np.uint8)
+    cx = CONTROL_REF[0] * MEMBRANE_WIDTH
+    cy = CONTROL_REF[1] * MEMBRANE_HEIGHT
+    centers = {"control": (cx, cy)}
+    for name, (ox, oy) in ANALYTE_OFFSETS.items():
+        centers[name] = (cx + ox, cy + oy)
+    for name in spot_names:
+        c = centers[name]
+        cv2.circle(img, (int(c[0]), int(c[1])), SPOT_RADIUS, (165, 85, 25), -1)
+    return img
 
 
 class TickBorneClassifierTests(unittest.TestCase):
@@ -78,6 +103,40 @@ class TickBorneClassifierTests(unittest.TestCase):
         self.assertEqual(result["detail"]["overall"], "Positive")
         self.assertEqual(result["detail"]["analytes"]["ehrlichia"], "Positive")
         self.assertEqual(result["detail"]["analytes"]["heartworm"], "Positive")
+
+
+class TickBorneGeometryTests(unittest.TestCase):
+    def test_detect_spots_recovers_control_and_selected_analyte(self):
+        membrane = _make_membrane(["control", "ehrlichia"])
+
+        scores = detect_spots(membrane)
+
+        self.assertTrue(scores["control"].detected)
+        self.assertTrue(scores["ehrlichia"].detected)
+        for name in ("lyme", "anaplasma", "heartworm"):
+            self.assertFalse(
+                scores[name].detected,
+                f"{name} should not be detected on a blank position",
+            )
+
+    def test_detect_spots_recovers_multiple_analytes(self):
+        membrane = _make_membrane(["control", "anaplasma", "lyme"])
+
+        result = classify_result_window(membrane)
+
+        self.assertEqual(result["detail"]["control"], "Valid")
+        self.assertEqual(result["detail"]["analytes"]["anaplasma"], "Positive")
+        self.assertEqual(result["detail"]["analytes"]["lyme"], "Positive")
+        self.assertEqual(result["detail"]["analytes"]["ehrlichia"], "Negative")
+        self.assertEqual(result["detail"]["analytes"]["heartworm"], "Negative")
+
+    def test_blank_membrane_is_invalid_without_control(self):
+        membrane = _make_membrane([])
+
+        result = classify_result_window(membrane)
+
+        self.assertEqual(result["summary"], "Invalid")
+        self.assertEqual(result["detail"]["control"], "Invalid")
 
 
 if __name__ == "__main__":

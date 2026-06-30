@@ -1,4 +1,16 @@
-"""Dot-based classifier for Tick Borne SNAP 4Dx Plus style cassettes."""
+"""Dot-based classifier for Tick Borne SNAP 4Dx Plus style cassettes.
+
+Calibrated against real black-background 4Dx Plus photographs. The pipeline
+crops the cassette, resolves the 180 degree orientation using the always
+present control spot, extracts a high-resolution membrane window, and scores
+five reaction spots with local colour contrast. Each analyte is judged with its
+own threshold. Geometry and thresholds are explicit calibrated constants and
+remain tunable as more positive samples become available.
+
+Calibration note: anaplasma and heartworm were calibrated from very few
+positive samples (3 and 1), so their thresholds carry less statistical weight
+than ehrlichia and lyme and should be revisited when more positives exist.
+"""
 
 from dataclasses import dataclass
 import logging
@@ -29,19 +41,46 @@ DISPLAY_NAMES = {
     "heartworm": "Heartworm",
 }
 
-SPOT_LAYOUT = {
-    "control": (0.30, 0.20),
-    "anaplasma": (0.68, 0.36),
-    "ehrlichia": (0.28, 0.50),
-    "heartworm": (0.70, 0.58),
-    "lyme": (0.36, 0.78),
+# Membrane window as fractions of the landscape cassette crop, in the canonical
+# pose where the sample well sits on the left and the snap logo on the right.
+MEMBRANE_X = (0.26, 0.56)
+MEMBRANE_Y = (0.26, 0.76)
+MEMBRANE_WIDTH = 600
+MEMBRANE_HEIGHT = 360
+
+# Control spot template position inside the membrane frame (fractions), and the
+# four analyte spot centres expressed as pixel offsets from the located control
+# centre. Anchoring the analytes to the detected control removes per-photo
+# translation so the closely spaced spots do not bleed into one another.
+CONTROL_REF = (0.34, 0.68)
+ANALYTE_OFFSETS = {
+    "anaplasma": (72, -65),
+    "ehrlichia": (156, -7),
+    "heartworm": (156, -137),
+    "lyme": (258, -61),
 }
 
-CONTROL_THRESHOLD = 7.0
-ANALYTE_THRESHOLD = 6.0
-HIGH_CHROMA_RATIO_MIN = 0.08
-SPOT_RADIUS_RATIO = 0.075
-LOCAL_SEARCH_STEPS = (-0.60, -0.30, 0.0, 0.30, 0.60)
+SPOT_RADIUS = 24
+ANNULUS_INNER = 1.4
+ANNULUS_OUTER = 1.9
+SATURATION_WEIGHT = 0.08
+HIGH_CHROMA_SAT = 35.0
+
+# Search grids: a wide grid to lock the control spot, a small grid to refine
+# each analyte around its anchored position.
+CONTROL_SEARCH_X = range(-40, 41, 5)
+CONTROL_SEARCH_Y = range(-30, 31, 5)
+ANALYTE_SEARCH = (-8, -4, 0, 4, 8)
+
+# Per-spot detection thresholds on the colour-contrast score, calibrated on the
+# black-background dataset.
+CONTROL_THRESHOLD = 40.0
+ANALYTE_THRESHOLDS = {
+    "anaplasma": 9.0,
+    "ehrlichia": 25.0,
+    "heartworm": 45.0,
+    "lyme": 16.0,
+}
 
 
 @dataclass(frozen=True)
@@ -63,6 +102,48 @@ class SpotScore:
         }
 
 
+def _score_components(
+    lab: np.ndarray,
+    hsv: np.ndarray,
+    cx: int,
+    cy: int,
+    radius: int,
+) -> tuple[float, float]:
+    """Local colour contrast of a disk against its surrounding annulus.
+
+    Returns the contrast score and the high-chroma pixel ratio of the disk.
+    The score combines the LAB delta-E between the disk and ring medians with a
+    smaller saturation-lift term, which is robust to lighting because it is
+    measured relative to the immediate background.
+    """
+    h, w = lab.shape[:2]
+    cx = int(np.clip(cx, 0, max(w - 1, 0)))
+    cy = int(np.clip(cy, 0, max(h - 1, 0)))
+    radius = max(2, int(radius))
+
+    yy, xx = np.ogrid[:h, :w]
+    dist_sq = (xx - cx) ** 2 + (yy - cy) ** 2
+    fg_mask = dist_sq <= radius ** 2
+    inner = (radius * ANNULUS_INNER) ** 2
+    outer = (radius * ANNULUS_OUTER) ** 2
+    bg_mask = (dist_sq <= outer) & (dist_sq >= inner)
+
+    if not np.any(fg_mask) or not np.any(bg_mask):
+        return 0.0, 0.0
+
+    fg_median = np.median(lab[fg_mask], axis=0)
+    bg_median = np.median(lab[bg_mask], axis=0)
+    delta_e = float(np.linalg.norm(fg_median - bg_median))
+
+    fg_sat = hsv[:, :, 1][fg_mask]
+    bg_sat = hsv[:, :, 1][bg_mask]
+    saturation_lift = max(0.0, float(np.median(fg_sat) - np.median(bg_sat)))
+    high_chroma_ratio = float(np.mean(fg_sat > HIGH_CHROMA_SAT))
+
+    score = delta_e + SATURATION_WEIGHT * saturation_lift
+    return score, high_chroma_ratio
+
+
 def score_spot(
     img_bgr: np.ndarray,
     name: str,
@@ -70,45 +151,19 @@ def score_spot(
     radius: int,
     threshold: float,
 ) -> SpotScore:
-    """Score a circular reaction spot against its local annulus background."""
+    """Score a single circular reaction spot against its local background."""
     if img_bgr.size == 0:
         return SpotScore(name, False, 0.0, threshold, 0.0, center)
 
-    h, w = img_bgr.shape[:2]
-    cx = int(np.clip(center[0], 0, max(w - 1, 0)))
-    cy = int(np.clip(center[1], 0, max(h - 1, 0)))
-    radius = max(2, int(radius))
-
-    yy, xx = np.ogrid[:h, :w]
-    dist_sq = (xx - cx) ** 2 + (yy - cy) ** 2
-    fg_mask = dist_sq <= radius ** 2
-    annulus_outer = (radius * 2.25) ** 2
-    annulus_inner = (radius * 1.35) ** 2
-    bg_mask = (dist_sq <= annulus_outer) & (dist_sq >= annulus_inner)
-
-    if not np.any(fg_mask) or not np.any(bg_mask):
-        return SpotScore(name, False, 0.0, threshold, 0.0, (cx, cy))
-
     lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
-
-    fg_lab = lab[fg_mask]
-    bg_lab = lab[bg_mask]
-    fg_median = np.median(fg_lab, axis=0)
-    bg_median = np.median(bg_lab, axis=0)
-    delta_e = float(np.linalg.norm(fg_median - bg_median))
-
-    fg_sat = hsv[:, :, 1][fg_mask]
-    bg_sat = hsv[:, :, 1][bg_mask]
-    saturation_lift = max(0.0, float(np.median(fg_sat) - np.median(bg_sat)))
-    high_chroma_ratio = float(np.mean(fg_sat > 35.0))
-
-    score = delta_e + saturation_lift * 0.08
-    detected = score >= threshold and high_chroma_ratio >= HIGH_CHROMA_RATIO_MIN
+    cx = int(np.clip(center[0], 0, max(img_bgr.shape[1] - 1, 0)))
+    cy = int(np.clip(center[1], 0, max(img_bgr.shape[0] - 1, 0)))
+    score, high_chroma_ratio = _score_components(lab, hsv, cx, cy, radius)
 
     return SpotScore(
         name=name,
-        detected=detected,
+        detected=score >= threshold,
         score=round(score, 2),
         threshold=threshold,
         high_chroma_ratio=round(high_chroma_ratio, 3),
@@ -116,33 +171,64 @@ def score_spot(
     )
 
 
-def detect_spots(window_bgr: np.ndarray) -> dict[str, SpotScore]:
-    """Detect all expected Tick Borne spots in a normalized result window."""
-    h, w = window_bgr.shape[:2]
-    radius = max(4, int(min(h, w) * SPOT_RADIUS_RATIO))
-    scores: dict[str, SpotScore] = {}
+def _best_spot(
+    lab: np.ndarray,
+    hsv: np.ndarray,
+    name: str,
+    cx0: float,
+    cy0: float,
+    search_x,
+    search_y,
+    threshold: float,
+) -> SpotScore:
+    """Search a small grid around an expected centre for the strongest spot."""
+    best_score = -1.0
+    best_center = (int(cx0), int(cy0))
+    best_chroma = 0.0
+    for dy in search_y:
+        for dx in search_x:
+            cx = int(cx0 + dx)
+            cy = int(cy0 + dy)
+            score, chroma = _score_components(lab, hsv, cx, cy, SPOT_RADIUS)
+            if score > best_score:
+                best_score = score
+                best_center = (cx, cy)
+                best_chroma = chroma
+    return SpotScore(
+        name=name,
+        detected=best_score >= threshold,
+        score=round(best_score, 2),
+        threshold=threshold,
+        high_chroma_ratio=round(best_chroma, 3),
+        center=best_center,
+    )
 
-    for name, (x_frac, y_frac) in SPOT_LAYOUT.items():
-        threshold = CONTROL_THRESHOLD if name == "control" else ANALYTE_THRESHOLD
-        expected = (int(w * x_frac), int(h * y_frac))
-        best = score_spot(window_bgr, name, expected, radius, threshold)
-        for dy in LOCAL_SEARCH_STEPS:
-            for dx in LOCAL_SEARCH_STEPS:
-                candidate_center = (
-                    int(expected[0] + dx * radius),
-                    int(expected[1] + dy * radius),
-                )
-                candidate = score_spot(
-                    window_bgr,
-                    name,
-                    candidate_center,
-                    radius,
-                    threshold,
-                )
-                if candidate.score > best.score:
-                    best = candidate
-        scores[name] = best
 
+def _control_spot(lab: np.ndarray, hsv: np.ndarray) -> SpotScore:
+    """Locate the control spot with a wide search around its template position."""
+    cx0 = CONTROL_REF[0] * MEMBRANE_WIDTH
+    cy0 = CONTROL_REF[1] * MEMBRANE_HEIGHT
+    return _best_spot(
+        lab, hsv, "control", cx0, cy0,
+        CONTROL_SEARCH_X, CONTROL_SEARCH_Y, CONTROL_THRESHOLD,
+    )
+
+
+def detect_spots(membrane_bgr: np.ndarray) -> dict[str, SpotScore]:
+    """Detect all five spots in a normalized, oriented membrane frame."""
+    lab = cv2.cvtColor(membrane_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+    hsv = cv2.cvtColor(membrane_bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
+
+    control = _control_spot(lab, hsv)
+    scores: dict[str, SpotScore] = {"control": control}
+
+    cx, cy = control.center
+    for name in ANALYTE_NAMES:
+        ox, oy = ANALYTE_OFFSETS[name]
+        scores[name] = _best_spot(
+            lab, hsv, name, cx + ox, cy + oy,
+            ANALYTE_SEARCH, ANALYTE_SEARCH, ANALYTE_THRESHOLDS[name],
+        )
     return scores
 
 
@@ -193,22 +279,22 @@ def classify_from_spot_scores(scores: dict[str, SpotScore]) -> dict:
     return {"summary": summary, "confidence": confidence, "detail": detail}
 
 
-def classify_result_window(window_bgr: np.ndarray) -> dict:
-    """Classify an already extracted Tick Borne result window."""
-    return classify_from_spot_scores(detect_spots(window_bgr))
+def classify_result_window(membrane_bgr: np.ndarray) -> dict:
+    """Classify an already extracted, oriented Tick Borne membrane frame."""
+    return classify_from_spot_scores(detect_spots(membrane_bgr))
 
 
 def classify_single_image(file_path: str) -> tuple[str, str, dict]:
     """Classify one full Tick Borne cassette photo."""
-    window = _read_result_window(file_path)
-    result = classify_result_window(window)
+    membrane = _read_membrane(file_path)
+    result = classify_result_window(membrane)
     return result["summary"], result["confidence"], result["detail"]
 
 
 def preprocess_cassette_image(input_path: str, output_path: str) -> None:
-    """Write a normalized Tick Borne result-window preview image."""
-    window = _read_result_window(input_path)
-    enhanced = _enhance_contrast(window)
+    """Write a normalized Tick Borne membrane preview image."""
+    membrane = _read_membrane(input_path)
+    enhanced = _enhance_contrast(membrane)
     result = cv2.resize(
         enhanced,
         (STANDARD_WIDTH, STANDARD_HEIGHT),
@@ -219,66 +305,91 @@ def preprocess_cassette_image(input_path: str, output_path: str) -> None:
         raise PreprocessingError("Failed to write preprocessed image to disk")
 
 
-def _read_result_window(file_path: str) -> np.ndarray:
+def _read_membrane(file_path: str) -> np.ndarray:
+    """Read a photo and return the oriented, normalized membrane frame."""
     img = cv2.imread(file_path)
     if img is None:
         raise PreprocessingError("Cannot read image file")
+    cassette = _crop_cassette(img)
+    return _oriented_membrane(cassette)
 
-    contour = _detect_cassette_contour(img)
+
+def _crop_cassette(img: np.ndarray) -> np.ndarray:
+    """Crop the straightened cassette in landscape orientation.
+
+    Tries the shared border detector first; on dark backgrounds where its
+    aspect and fill filters reject a clean shot, falls back to the largest
+    bright blob, which separates the white cassette from the dark surface.
+    """
+    try:
+        contour = _detect_cassette_contour(img)
+    except PreprocessingError:
+        contour = _largest_bright_contour(img)
+        if contour is None:
+            raise
     cassette = _straighten_and_crop(img, contour)
-    cassette = _ensure_portrait(cassette)
-    cassette = _correct_vertical_direction(cassette)
-    return _extract_result_window(cassette)
+    if cassette.shape[0] > cassette.shape[1]:
+        cassette = cv2.rotate(cassette, cv2.ROTATE_90_CLOCKWISE)
+    return cassette
 
 
-def _ensure_portrait(img: np.ndarray) -> np.ndarray:
-    h, w = img.shape[:2]
-    if w > h:
-        return cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
-    return img
-
-
-def _correct_vertical_direction(img: np.ndarray) -> np.ndarray:
-    """Orient cassette with sample well above the result window."""
-    h, w = img.shape[:2]
+def _largest_bright_contour(img: np.ndarray) -> np.ndarray | None:
+    """Largest elongated bright blob, used as a dark-background crop fallback."""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.medianBlur(gray, 5)
-    min_radius = max(4, int(w * 0.08))
-    max_radius = max(min_radius + 1, int(w * 0.22))
-    circles = cv2.HoughCircles(
-        blurred,
-        cv2.HOUGH_GRADIENT,
-        dp=1.2,
-        minDist=max(20, int(h * 0.25)),
-        param1=100,
-        param2=28,
-        minRadius=min_radius,
-        maxRadius=max_radius,
+    blur = cv2.GaussianBlur(gray, (7, 7), 0)
+    _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=3)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
+    contours, _ = cv2.findContours(
+        thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    total = img.shape[0] * img.shape[1]
+    best = None
+    best_area = 0.05 * total
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area <= best_area or area > 0.95 * total:
+            continue
+        _, _, bw, bh = cv2.boundingRect(cnt)
+        long_side, short_side = max(bw, bh), min(bw, bh)
+        if short_side == 0 or long_side / short_side < 1.6:
+            continue
+        best = cnt
+        best_area = area
+    return best
+
+
+def _crop_membrane(cassette: np.ndarray) -> np.ndarray:
+    """Crop and resize the membrane window from a landscape cassette."""
+    h, w = cassette.shape[:2]
+    sub = cassette[
+        int(MEMBRANE_Y[0] * h):int(MEMBRANE_Y[1] * h),
+        int(MEMBRANE_X[0] * w):int(MEMBRANE_X[1] * w),
+    ]
+    if sub.size == 0:
+        raise PreprocessingError("Tick Borne membrane extraction failed")
+    return cv2.resize(
+        sub, (MEMBRANE_WIDTH, MEMBRANE_HEIGHT), interpolation=cv2.INTER_AREA
     )
 
-    if circles is not None:
-        candidates = np.round(circles[0, :]).astype(int)
-        top_half = [c for c in candidates if c[1] < h * 0.45]
-        bottom_half = [c for c in candidates if c[1] > h * 0.55]
-        if bottom_half and not top_half:
-            logger.debug("Tick Borne cassette appears inverted; rotating 180 degrees")
-            return cv2.rotate(img, cv2.ROTATE_180)
 
-    top = gray[: h // 3, :]
-    bottom = gray[h - h // 3 :, :]
-    if float(np.std(bottom)) > float(np.std(top)) * 1.25:
-        return cv2.rotate(img, cv2.ROTATE_180)
-    return img
+def _oriented_membrane(cassette: np.ndarray) -> np.ndarray:
+    """Pick the 180 degree pose whose control spot scores higher.
+
+    The control spot is always present and only lights up at its template
+    position when the cassette is oriented correctly, so its colour-contrast
+    score is a reliable orientation oracle that does not depend on the variable
+    sample-well colour or on which analytes happen to be positive.
+    """
+    frame_a = _crop_membrane(cassette)
+    frame_b = _crop_membrane(cv2.rotate(cassette, cv2.ROTATE_180))
+    if _control_score(frame_a) >= _control_score(frame_b):
+        return frame_a
+    return frame_b
 
 
-def _extract_result_window(cassette: np.ndarray) -> np.ndarray:
-    """Extract the central SNAP 4Dx Plus reaction window."""
-    h, w = cassette.shape[:2]
-    x1 = int(w * 0.24)
-    x2 = int(w * 0.76)
-    y1 = int(h * 0.28)
-    y2 = int(h * 0.62)
-    window = cassette[y1:y2, x1:x2]
-    if window.size == 0:
-        raise PreprocessingError("Tick Borne result window extraction failed")
-    return window
+def _control_score(membrane_bgr: np.ndarray) -> float:
+    lab = cv2.cvtColor(membrane_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+    hsv = cv2.cvtColor(membrane_bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
+    return _control_spot(lab, hsv).score
