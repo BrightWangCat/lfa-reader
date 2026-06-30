@@ -16,8 +16,9 @@
 #     └── metadata.json
 #
 # Retention:
-#   backend-change = keep until manually deleted
-#   pre-restore    = keep the latest 20 snapshots
+#   Both modes share one rolling pool. Every run keeps only the 2 newest
+#   snapshots by timestamp and deletes the rest, so AWS holds at most 3
+#   database copies: the live db plus 2 backups.
 
 set -euo pipefail
 
@@ -28,9 +29,11 @@ DB_SRC="$REPO_ROOT/apps/backend/lfa_reader.db"
 MODE="${1:-backend-change}"
 UPSTREAM_INPUT="${2:-@{upstream}}"
 
+# Both modes share one rolling backup pool; keep only the newest KEEP snapshots.
+KEEP=2
+
 case "$MODE" in
-  backend-change) RETAIN=0 ;;
-  pre-restore) RETAIN=20 ;;
+  backend-change|pre-restore) ;;
   *)
     echo "Usage: $0 backend-change [upstream-ref] | pre-restore" >&2
     exit 2
@@ -104,13 +107,16 @@ cat > "$DEST/metadata.json" <<EOF
 }
 EOF
 
-if [[ "$RETAIN" -gt 0 ]]; then
-  TIER_DIR="$BACKUP_ROOT/$MODE"
-  mapfile -t OLD < <(ls -1 "$TIER_DIR" | sort -r | tail -n +"$((RETAIN + 1))")
-  for old in "${OLD[@]}"; do
-    rm -rf "${TIER_DIR:?}/$old"
-    log "rotated out: $old"
-  done
-fi
+# Unified rotation across both modes: keep only the newest KEEP snapshots by
+# timestamp and delete the rest, capping AWS at the live db plus KEEP backups.
+mapfile -t SNAPSHOTS < <(
+  find "$BACKUP_ROOT" -mindepth 2 -maxdepth 2 -type d -printf '%f\t%p\n' \
+    | sort -r \
+    | cut -f2-
+)
+for old in "${SNAPSHOTS[@]:$KEEP}"; do
+  rm -rf "$old"
+  log "rotated out: ${old#"$BACKUP_ROOT"/}"
+done
 
 log "done -> $DEST"

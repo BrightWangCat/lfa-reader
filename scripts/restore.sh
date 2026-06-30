@@ -8,11 +8,13 @@
 #
 # Behavior:
 #   1. Verifies that the snapshot exists and contains lfa_reader.db
-#   2. Creates a pre-restore database snapshot as a rollback safety net
-#   3. Stops uvicorn to avoid file-handle conflicts
-#   4. Replaces lfa_reader.db
-#   5. Restores uploads/ only when the snapshot contains a legacy uploads.tar.gz
-#   6. Prints the manual restart command
+#   2. Stages the snapshot to a temp dir so rolling rotation cannot delete the
+#      source while the restore is in progress
+#   3. Creates a pre-restore database snapshot as a rollback safety net
+#   4. Stops uvicorn to avoid file-handle conflicts
+#   5. Replaces lfa_reader.db from the staged copy
+#   6. Restores uploads/ only when the snapshot contains a legacy uploads.tar.gz
+#   7. Prints the manual restart command
 
 set -euo pipefail
 
@@ -56,6 +58,16 @@ fi
 echo "[restore] source: $SNAPSHOT"
 [[ -f "$SNAPSHOT/metadata.json" ]] && cat "$SNAPSHOT/metadata.json"
 
+# The pre-restore snapshot below triggers rolling rotation that can delete this
+# source snapshot when it is the oldest in the pool. Stage what we need into a
+# temp dir first so the restore always reads from a stable copy.
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+cp "$SNAPSHOT/lfa_reader.db" "$STAGE/"
+if [[ -f "$SNAPSHOT/uploads.tar.gz" ]]; then
+  cp "$SNAPSHOT/uploads.tar.gz" "$STAGE/"
+fi
+
 echo "[restore] snapshotting current state to pre-restore/ ..."
 "$REPO_ROOT/scripts/backup.sh" pre-restore
 
@@ -65,12 +77,12 @@ if pgrep -f "venv/bin/uvicorn" > /dev/null; then
   sleep 1
 fi
 
-cp "$SNAPSHOT/lfa_reader.db" "$DB_DEST"
+cp "$STAGE/lfa_reader.db" "$DB_DEST"
 echo "[restore] db replaced ($(stat -c%s "$DB_DEST") bytes)"
 
-if [[ -f "$SNAPSHOT/uploads.tar.gz" ]]; then
+if [[ -f "$STAGE/uploads.tar.gz" ]]; then
   rm -rf "$UPLOADS_DEST"
-  tar -xzf "$SNAPSHOT/uploads.tar.gz" -C "$REPO_ROOT/apps/backend"
+  tar -xzf "$STAGE/uploads.tar.gz" -C "$REPO_ROOT/apps/backend"
   echo "[restore] uploads restored from legacy snapshot"
 else
   echo "[restore] snapshot has no uploads.tar.gz; leaving uploads/ unchanged"
