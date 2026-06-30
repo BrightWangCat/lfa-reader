@@ -12,7 +12,7 @@ class ClassificationDispatcherTests(unittest.TestCase):
     def test_routes_tick_borne_to_tick_borne_classifier(self):
         image = SimpleNamespace(
             file_path="/tmp/tick.jpg",
-            patient_info=SimpleNamespace(disease_category="Tick Borne"),
+            disease_category="Tick Borne",
         )
 
         with patch(
@@ -30,10 +30,32 @@ class ClassificationDispatcherTests(unittest.TestCase):
         self.assertEqual(result.confidence, "medium")
         self.assertEqual(result.detail["workflow"], "Tick Borne")
 
+    def test_tick_borne_without_shared_patient_info_still_routes_by_workflow(self):
+        # Regression: disease_category lives on the image itself, so an upload
+        # made without sharing patient info (no patient_info row) must still
+        # reach the Tick Borne classifier instead of falling back to FIV/FeLV.
+        image = SimpleNamespace(
+            file_path="/tmp/tick_no_patient.jpg",
+            disease_category="Tick Borne",
+            patient_info=None,
+        )
+
+        with patch(
+            "app.services.classification_dispatcher.tick_borne.classify_single_image",
+            return_value=("Negative", "high", {"workflow": "Tick Borne"}),
+        ) as tick_classifier, patch(
+            "app.services.classification_dispatcher.fiv_felv.classify_single_image",
+        ) as fiv_classifier:
+            result = classify_image_record(image)
+
+        tick_classifier.assert_called_once_with("/tmp/tick_no_patient.jpg")
+        fiv_classifier.assert_not_called()
+        self.assertEqual(result.summary, "Negative")
+
     def test_routes_fiv_felv_to_fiv_felv_classifier(self):
         image = SimpleNamespace(
             file_path="/tmp/fiv.jpg",
-            patient_info=SimpleNamespace(disease_category="FIV/FeLV"),
+            disease_category="FIV/FeLV",
         )
 
         with patch(
@@ -47,8 +69,8 @@ class ClassificationDispatcherTests(unittest.TestCase):
         self.assertEqual(result.confidence, "high")
         self.assertEqual(result.detail["workflow"], "FIV/FeLV")
 
-    def test_missing_patient_info_defaults_to_fiv_felv_classifier(self):
-        image = SimpleNamespace(file_path="/tmp/legacy.jpg", patient_info=None)
+    def test_missing_disease_category_defaults_to_fiv_felv_classifier(self):
+        image = SimpleNamespace(file_path="/tmp/legacy.jpg", disease_category=None)
 
         with patch(
             "app.services.classification_dispatcher.fiv_felv.classify_single_image",

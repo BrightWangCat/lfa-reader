@@ -49,11 +49,7 @@ def classify_image(image_id: int, db_factory) -> None:
 
         if image.preprocessed_path:
             try:
-                disease_category = (
-                    image.patient_info.disease_category
-                    if image.patient_info is not None
-                    else None
-                )
+                disease_category = getattr(image, "disease_category", None)
                 preprocess_image_for_workflow(
                     image.file_path,
                     image.preprocessed_path,

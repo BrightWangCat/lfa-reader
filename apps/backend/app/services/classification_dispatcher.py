@@ -6,9 +6,7 @@ from app.services.classifiers import fiv_felv, tick_borne
 
 def classify_image_record(image) -> ClassificationResult:
     """Classify an Image ORM object using its disease workflow."""
-    disease_category = None
-    if getattr(image, "patient_info", None) is not None:
-        disease_category = image.patient_info.disease_category
+    disease_category = getattr(image, "disease_category", None)
 
     if disease_category == tick_borne.WORKFLOW_LABEL:
         summary, confidence, detail = tick_borne.classify_single_image(image.file_path)

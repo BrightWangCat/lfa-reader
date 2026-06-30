@@ -87,7 +87,7 @@ const buildTickBorneCorrectionOptions = () => {
 };
 
 const correctionOptionsForImage = (image) => {
-  if (image?.patient_info?.disease_category === "Tick Borne") {
+  if (image?.disease_category === "Tick Borne") {
     return buildTickBorneCorrectionOptions();
   }
   return CATEGORIES.map((cat) => ({ value: cat, label: cat }));

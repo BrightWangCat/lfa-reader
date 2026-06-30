@@ -97,6 +97,7 @@ async def upload_single(
         file_path="",
         file_size=len(content),
         is_preprocessed=False,
+        disease_category=disease_category,
     )
     db.add(image)
     db.flush()
@@ -181,9 +182,7 @@ def list_images(
     for img in images:
         item = ImageListItem.model_validate(img)
         item.username = username_map.get(img.user_id, "Unknown")
-        item.disease_category = (
-            img.patient_info.disease_category if img.patient_info else None
-        )
+        item.disease_category = img.disease_category
         result.append(item)
     return result
 

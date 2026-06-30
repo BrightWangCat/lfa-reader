@@ -110,6 +110,7 @@ class ImageResponse(BaseModel):
     stored_filename: str
     file_size: int
     is_preprocessed: bool = False
+    disease_category: str | None = None
     cv_result: str | None = None
     cv_confidence: str | None = None
     cv_result_detail: dict[str, Any] | None = None

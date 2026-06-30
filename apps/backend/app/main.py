@@ -246,6 +246,38 @@ def _migrate_add_disease_fields(eng):
 _migrate_add_disease_fields(engine)
 
 
+# Promote disease_category from patient_info onto images. It identifies the
+# workflow and must exist even when the user did not share patient info, the
+# only place it previously lived. Idempotent: add the column if missing and
+# backfill it from patient_info for rows uploaded under the old schema.
+def _migrate_image_disease_category(eng):
+    insp = sa_inspect(eng)
+    table_names = set(insp.get_table_names())
+    if "images" not in table_names:
+        return
+    images_cols = {c["name"] for c in insp.get_columns("images")}
+    with eng.begin() as conn:
+        if "disease_category" not in images_cols:
+            conn.execute(text("ALTER TABLE images ADD COLUMN disease_category TEXT"))
+    if "patient_info" in table_names:
+        with eng.begin() as conn:
+            conn.execute(text(
+                """
+                UPDATE images SET disease_category = (
+                    SELECT p.disease_category FROM patient_info p
+                    WHERE p.image_id = images.id
+                )
+                WHERE disease_category IS NULL
+                  AND EXISTS (
+                    SELECT 1 FROM patient_info p WHERE p.image_id = images.id
+                  )
+                """
+            ))
+
+
+_migrate_image_disease_category(engine)
+
+
 app = FastAPI(title="LFA Reader", version="0.2.0")
 
 app.add_middleware(

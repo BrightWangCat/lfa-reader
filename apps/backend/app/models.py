@@ -29,6 +29,10 @@ class Image(Base):
     preprocessed_filename = Column(String, nullable=True)
     preprocessed_path = Column(String, nullable=True)
     is_preprocessed = Column(Boolean, default=False, nullable=False)
+    # Disease workflow chosen on the Home page. Persisted on every upload,
+    # independent of whether patient info was shared, because it selects the
+    # classifier and the valid result categories.
+    disease_category = Column(String, nullable=True)
     cv_result = Column(String, nullable=True)
     cv_confidence = Column(String, nullable=True)
     cv_result_detail = Column(String, nullable=True)
