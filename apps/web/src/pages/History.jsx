@@ -67,7 +67,10 @@ export default function History() {
     if (final) {
       const isCorrected = !!record.manual_correction;
       return (
-        <Tag color={isCorrected ? "green" : "blue"}>
+        <Tag
+          color={isCorrected ? "green" : "blue"}
+          style={{ whiteSpace: "normal", margin: 0 }}
+        >
           {final}
           {isCorrected && " ✓"}
         </Tag>
@@ -107,7 +110,7 @@ export default function History() {
     {
       title: "Result",
       key: "result",
-      width: 130,
+      width: 220,
       align: "center",
       render: (_, record) => renderResultTag(record),
     },
