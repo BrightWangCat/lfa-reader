@@ -18,7 +18,7 @@ class ClassificationDispatcherTests(unittest.TestCase):
         with patch(
             "app.services.classification_dispatcher.tick_borne.classify_single_image",
             return_value=(
-                "Positive: Lyme",
+                "Positive: Lyme disease Ab (B. burgdorferi)",
                 "medium",
                 {"workflow": "Tick Borne"},
             ),
@@ -26,7 +26,7 @@ class ClassificationDispatcherTests(unittest.TestCase):
             result = classify_image_record(image)
 
         classifier.assert_called_once_with("/tmp/tick.jpg")
-        self.assertEqual(result.summary, "Positive: Lyme")
+        self.assertEqual(result.summary, "Positive: Lyme disease Ab (B. burgdorferi)")
         self.assertEqual(result.confidence, "medium")
         self.assertEqual(result.detail["workflow"], "Tick Borne")
 

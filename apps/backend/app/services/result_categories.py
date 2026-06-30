@@ -7,10 +7,10 @@ FIV_FELV_CATEGORIES = [
 ]
 
 TICK_BORNE_ANALYTE_LABELS = [
-    "Ehrlichia",
-    "Lyme",
-    "Anaplasma",
-    "Heartworm",
+    "E. canis/E. ewingii Ab",
+    "Lyme disease Ab (B. burgdorferi)",
+    "A. phagocytophilum/A. platys Ab",
+    "Heartworm Ag",
 ]
 
 STAT_CATEGORIES = [

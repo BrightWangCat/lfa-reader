@@ -98,7 +98,7 @@ class TickBorneClassifierTests(unittest.TestCase):
 
         result = classify_from_spot_scores(scores)
 
-        self.assertEqual(result["summary"], "Positive: Ehrlichia, Heartworm")
+        self.assertEqual(result["summary"], "Positive: E. canis/E. ewingii Ab, Heartworm Ag")
         self.assertEqual(result["confidence"], "medium")
         self.assertEqual(result["detail"]["overall"], "Positive")
         self.assertEqual(result["detail"]["analytes"]["ehrlichia"], "Positive")

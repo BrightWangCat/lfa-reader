@@ -35,10 +35,10 @@ WORKFLOW_LABEL = "Tick Borne"
 ANALYTE_NAMES = ("ehrlichia", "lyme", "anaplasma", "heartworm")
 
 DISPLAY_NAMES = {
-    "ehrlichia": "Ehrlichia",
-    "lyme": "Lyme",
-    "anaplasma": "Anaplasma",
-    "heartworm": "Heartworm",
+    "ehrlichia": "E. canis/E. ewingii Ab",
+    "lyme": "Lyme disease Ab (B. burgdorferi)",
+    "anaplasma": "A. phagocytophilum/A. platys Ab",
+    "heartworm": "Heartworm Ag",
 }
 
 # Membrane window as fractions of the landscape cassette crop, in the canonical

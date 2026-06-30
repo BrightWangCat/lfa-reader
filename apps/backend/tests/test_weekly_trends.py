@@ -25,7 +25,7 @@ class WeeklyTrendTests(unittest.TestCase):
             ("Positive L", datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)),
             ("Positive I", datetime(2026, 5, 11, 12, 0, tzinfo=timezone.utc)),
             ("Positive L+I", datetime(2026, 5, 17, 12, 0, tzinfo=timezone.utc)),
-            ("Positive: Lyme", datetime(2026, 5, 17, 13, 0, tzinfo=timezone.utc)),
+            ("Positive: Lyme disease Ab (B. burgdorferi)", datetime(2026, 5, 17, 13, 0, tzinfo=timezone.utc)),
             ("Negative", datetime(2026, 5, 17, 12, 0, tzinfo=timezone.utc)),
         ]
 

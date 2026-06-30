@@ -38,7 +38,7 @@ This repository is **not** distributed under an OSI-approved open source license
 Classification is workflow-specific:
 
 - **FIV/FeLV**: `Negative`, `Positive L`, `Positive I`, `Positive L+I`, or `Invalid`
-- **Tick Borne**: per-analyte Ehrlichia, Lyme, Anaplasma, and Heartworm results with a summary such as `Positive: Lyme` or `Negative`
+- **Tick Borne**: per-analyte E. canis/E. ewingii Ab, Lyme disease Ab (B. burgdorferi), A. phagocytophilum/A. platys Ab, and Heartworm Ag results with a summary such as `Positive: Lyme disease Ab (B. burgdorferi)` or `Negative`
 - **Invalid**: no valid workflow control signal detected
 
 ## Tech Stack

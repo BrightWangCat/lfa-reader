@@ -66,10 +66,10 @@ const CATEGORIES = [
 ];
 
 const TICK_BORNE_ANALYTES = [
-  ["ehrlichia", "Ehrlichia"],
-  ["lyme", "Lyme"],
-  ["anaplasma", "Anaplasma"],
-  ["heartworm", "Heartworm"],
+  ["ehrlichia", "E. canis/E. ewingii Ab"],
+  ["lyme", "Lyme disease Ab (B. burgdorferi)"],
+  ["anaplasma", "A. phagocytophilum/A. platys Ab"],
+  ["heartworm", "Heartworm Ag"],
 ];
 
 const buildTickBorneCorrectionOptions = () => {
