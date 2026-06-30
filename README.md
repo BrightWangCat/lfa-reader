@@ -48,7 +48,7 @@ Classification is workflow-specific:
 | **iOS App** | Swift, SwiftUI, AVFoundation, async/await |
 | **Web Frontend** | React 19, React Router 7, Vite 7, Ant Design 6.3, Leaflet, react-webcam |
 | **Backend** | Python 3.12, FastAPI, SQLAlchemy 2, Pydantic 2, Uvicorn |
-| **Computer Vision** | OpenCV headless, LAB color-space band detection |
+| **Computer Vision** | OpenCV headless, LAB color-space line and spot detection |
 | **Database** | SQLite |
 | **Auth** | JWT via python-jose, bcrypt via passlib |
 | **Weather Data** | Open-Meteo Historical Weather API |

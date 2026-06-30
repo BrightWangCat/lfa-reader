@@ -21,8 +21,7 @@ uploads/
 # Logs
 *.log
 tmp/
-.superpowers/
-.playwright-cli/
+
 
 # Node
 node_modules/
