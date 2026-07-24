@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Webcam from "react-webcam";
 import { Button, Typography } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
+import { buildUploadPath } from "./cameraNavigation";
 
 const { Text } = Typography;
 
@@ -29,6 +30,7 @@ function canUseGetUserMedia() {
  */
 export default function CameraCapture() {
   const navigate = useNavigate();
+  const location = useLocation();
   const webcamRef = useRef(null);
   const [croppedPreview, setCroppedPreview] = useState(null);
   const [croppedBlob, setCroppedBlob] = useState(null);
@@ -38,6 +40,7 @@ export default function CameraCapture() {
   const [nativeImage, setNativeImage] = useState(null);
 
   const isSecure = canUseGetUserMedia();
+  const uploadPath = buildUploadPath(location.search);
 
   useEffect(() => {
     if (!isSecure) {
@@ -55,8 +58,8 @@ export default function CameraCapture() {
   );
 
   const handleClose = useCallback(() => {
-    navigate("/upload", { state: { mode: "single" } });
-  }, [navigate]);
+    navigate(uploadPath, { state: { mode: "single" } });
+  }, [navigate, uploadPath]);
 
   // 实时模式：拍照并裁剪到引导框区域
   const handleCapture = useCallback(() => {
@@ -182,10 +185,10 @@ export default function CameraCapture() {
     const reader = new FileReader();
     reader.onload = () => {
       sessionStorage.setItem("capturedImage", reader.result);
-      navigate("/upload", { state: { mode: "single", fromCamera: true } });
+      navigate(uploadPath, { state: { mode: "single", fromCamera: true } });
     };
     reader.readAsDataURL(croppedBlob);
-  }, [croppedBlob, navigate]);
+  }, [croppedBlob, navigate, uploadPath]);
 
   // 重新拍照
   const handleRetake = useCallback(() => {

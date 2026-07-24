@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -11,11 +12,13 @@ from app.services.classifiers.tick_borne import (
     MEMBRANE_WIDTH,
     SPOT_RADIUS,
     SpotScore,
+    _crop_cassette,
     classify_from_spot_scores,
     classify_result_window,
     detect_spots,
     score_spot,
 )
+from app.services.image_preprocessor import PreprocessingError
 
 
 def _make_membrane(spot_names):
@@ -106,6 +109,28 @@ class TickBorneClassifierTests(unittest.TestCase):
 
 
 class TickBorneGeometryTests(unittest.TestCase):
+    def test_border_detection_failure_names_tick_borne_cassette(self):
+        image = np.zeros((100, 200, 3), dtype=np.uint8)
+        legacy_error = PreprocessingError(
+            "Cannot detect cassette border. Please ensure the image contains "
+            "a clearly visible FeLV/FIV test cassette."
+        )
+
+        with patch(
+            "app.services.classifiers.tick_borne._detect_cassette_contour",
+            side_effect=legacy_error,
+        ), patch(
+            "app.services.classifiers.tick_borne._largest_bright_contour",
+            return_value=None,
+        ):
+            with self.assertRaisesRegex(
+                PreprocessingError,
+                "clearly visible Tick Borne test cassette",
+            ) as context:
+                _crop_cassette(image)
+
+        self.assertNotIn("FIV", str(context.exception))
+
     def test_detect_spots_recovers_control_and_selected_analyte(self):
         membrane = _make_membrane(["control", "ehrlichia"])
 

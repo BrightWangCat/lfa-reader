@@ -19,6 +19,7 @@ import {
   InboxOutlined,
   CameraOutlined,
 } from "@ant-design/icons";
+import { buildCameraPath } from "../components/cameraNavigation";
 import { uploadSingle } from "../services/api";
 import diseases from "@shared/data/diseases.json";
 import breeds from "@shared/data/breeds.json";
@@ -247,7 +248,7 @@ export default function UploadPage() {
           </Dragger>
 
           <div
-            onClick={() => navigate("/camera")}
+            onClick={() => navigate(buildCameraPath(location.search))}
             style={{ position: "relative", marginBottom: 16, cursor: "pointer" }}
           >
             <Dragger

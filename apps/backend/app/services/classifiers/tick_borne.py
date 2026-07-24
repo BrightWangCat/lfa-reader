@@ -323,10 +323,13 @@ def _crop_cassette(img: np.ndarray) -> np.ndarray:
     """
     try:
         contour = _detect_cassette_contour(img)
-    except PreprocessingError:
+    except PreprocessingError as error:
         contour = _largest_bright_contour(img)
         if contour is None:
-            raise
+            raise PreprocessingError(
+                "Cannot detect cassette border. Please ensure the image contains "
+                "a clearly visible Tick Borne test cassette."
+            ) from error
     cassette = _straighten_and_crop(img, contour)
     if cassette.shape[0] > cassette.shape[1]:
         cassette = cv2.rotate(cassette, cv2.ROTATE_90_CLOCKWISE)
