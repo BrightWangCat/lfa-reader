@@ -25,9 +25,21 @@ struct GlobalStats: Codable {
         temperatureError = try container.decodeIfPresent(String.self, forKey: .temperatureError)
     }
 
-    /// Ordered categories for display
-    static let displayCategories = ["Negative", "Positive L", "Positive I", "Positive L+I"]
-    static let positiveCategories = ["Positive L", "Positive I", "Positive L+I"]
+    /// Ordered categories returned by the backend. "Positive" is the generic
+    /// aggregate used by workflows such as Tick Borne.
+    static let displayCategories = [
+        "Negative",
+        "Positive",
+        "Positive L",
+        "Positive I",
+        "Positive L+I",
+    ]
+    static let positiveCategories = [
+        "Positive",
+        "Positive L",
+        "Positive I",
+        "Positive L+I",
+    ]
 
     /// Ordered dimension keys for display
     static let dimensionKeys = [
@@ -42,13 +54,13 @@ struct GlobalStats: Codable {
 
     /// Human-readable dimension titles
     static let dimensionTitles: [String: String] = [
-        "disease_category": "Disease",
+        "disease_category": "Disease Category",
         "species": "Species",
         "age": "Age",
         "sex": "Sex",
         "breed": "Breed",
         "area_code": "Area Code",
-        "preventive_treatment": "Preventive Treatment",
+        "preventive_treatment": "Preventive Treatment (6mo)",
     ]
 }
 

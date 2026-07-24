@@ -52,6 +52,9 @@ class ImageDetailViewModel {
                 startPollingIfNeeded()
             } else {
                 stopPolling()
+                classificationError = image.readingStatus == "failed"
+                    ? image.readingError ?? "Classification failed"
+                    : nil
             }
         } catch {
             detailError = error.localizedDescription
@@ -138,6 +141,13 @@ class ImageDetailViewModel {
         }
 
         isSavingCorrection = false
+    }
+
+    @MainActor
+    func approveCVResult() async {
+        guard let cvResult = testImage?.cvResult else { return }
+        selectedCorrection = cvResult
+        await saveCorrection()
     }
 
     @MainActor

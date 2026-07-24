@@ -37,6 +37,80 @@ struct ClassificationDetail: Codable {
     let confidence: String?
 }
 
+/// Canonical Tick Borne result labels shared by result display and correction UI.
+enum TickBorneResult {
+    struct Analyte {
+        let key: String
+        let label: String
+    }
+
+    static let analytes = [
+        Analyte(key: "ehrlichia", label: "E. canis/E. ewingii Ab"),
+        Analyte(key: "lyme", label: "Lyme disease Ab (B. burgdorferi)"),
+        Analyte(key: "anaplasma", label: "A. phagocytophilum/A. platys Ab"),
+        Analyte(key: "heartworm", label: "Heartworm Ag"),
+    ]
+
+    /// Generates the exact summary strings accepted by the backend.
+    static var correctionOptions: [String] {
+        var options = ["Negative"]
+        for mask in 1..<(1 << analytes.count) {
+            let labels = analytes.enumerated().compactMap { index, analyte in
+                (mask & (1 << index)) != 0 ? analyte.label : nil
+            }
+            options.append("Positive: \(labels.joined(separator: ", "))")
+        }
+        options.append("Invalid")
+        return options
+    }
+
+    /// Builds analyte detail for a manual correction because the correction API
+    /// currently returns only the summary string, not manual_correction_detail.
+    static func detail(for summary: String) -> ClassificationDetail? {
+        if summary == "Invalid" {
+            return ClassificationDetail(
+                workflow: "Tick Borne",
+                overall: "Invalid",
+                control: "Invalid",
+                analytes: nil,
+                confidence: nil
+            )
+        }
+
+        let positiveLabels: Set<String>
+        if summary == "Negative" {
+            positiveLabels = []
+        } else {
+            guard summary.hasPrefix("Positive:") else { return nil }
+            let rawLabels = summary
+                .dropFirst("Positive:".count)
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+            let allowedLabels = Set(analytes.map(\.label))
+            guard !rawLabels.isEmpty,
+                  Set(rawLabels).count == rawLabels.count,
+                  rawLabels.allSatisfy(allowedLabels.contains) else {
+                return nil
+            }
+            positiveLabels = Set(rawLabels)
+        }
+
+        let results = Dictionary(uniqueKeysWithValues: analytes.map { analyte in
+            (
+                analyte.key,
+                positiveLabels.contains(analyte.label) ? "Positive" : "Negative"
+            )
+        })
+        return ClassificationDetail(
+            workflow: "Tick Borne",
+            overall: summary == "Negative" ? "Negative" : "Positive",
+            control: "Valid",
+            analytes: results,
+            confidence: nil
+        )
+    }
+}
+
 /// Represents a single test image returned by the detail endpoint.
 struct TestImage: Codable, Identifiable {
     let id: Int
@@ -45,6 +119,7 @@ struct TestImage: Codable, Identifiable {
     let storedFilename: String
     let fileSize: Int
     let isPreprocessed: Bool
+    let diseaseCategory: String?
     var cvResult: String?
     var cvConfidence: String?
     var cvResultDetail: ClassificationDetail?
@@ -63,6 +138,7 @@ struct TestImage: Codable, Identifiable {
         case storedFilename = "stored_filename"
         case fileSize = "file_size"
         case isPreprocessed = "is_preprocessed"
+        case diseaseCategory = "disease_category"
         case cvResult = "cv_result"
         case cvConfidence = "cv_confidence"
         case cvResultDetail = "cv_result_detail"
@@ -81,7 +157,17 @@ struct TestImage: Codable, Identifiable {
     }
 
     var finalResultDetail: ClassificationDetail? {
-        manualCorrectionDetail ?? cvResultDetail
+        if let manualCorrection {
+            if let manualCorrectionDetail {
+                return manualCorrectionDetail
+            }
+            let workflow = diseaseCategory ?? patientInfo?.diseaseCategory
+            if workflow == "Tick Borne" {
+                return TickBorneResult.detail(for: manualCorrection)
+            }
+            return nil
+        }
+        return cvResultDetail
     }
 }
 

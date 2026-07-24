@@ -41,6 +41,31 @@ final class SelfSignedCertDelegate: NSObject, URLSessionDelegate {
 }
 #endif
 
+typealias UploadProgressHandler = @MainActor @Sendable (Double) -> Void
+
+/// Reports request-body progress for a single URLSession upload task.
+private final class UploadTaskDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let onProgress: UploadProgressHandler?
+
+    init(onProgress: UploadProgressHandler?) {
+        self.onProgress = onProgress
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didSendBodyData bytesSent: Int64,
+        totalBytesSent: Int64,
+        totalBytesExpectedToSend: Int64
+    ) {
+        guard totalBytesExpectedToSend > 0, let onProgress else { return }
+        let progress = min(max(Double(totalBytesSent) / Double(totalBytesExpectedToSend), 0), 1)
+        Task { @MainActor in
+            onProgress(progress)
+        }
+    }
+}
+
 /// Centralized API client for communicating with the LFA Reader backend.
 actor APIClient {
     static let shared = APIClient()
@@ -158,6 +183,25 @@ actor APIClient {
         try await request("GET", path: "/users/me")
     }
 
+    // MARK: - Admin user management
+
+    /// Fetch all users. Admin only.
+    func fetchUsers() async throws -> [UserResponse] {
+        try await request("GET", path: "/users/")
+    }
+
+    /// Change another user's role. Admin only.
+    func updateUserRole(userId: Int, role: UserRole) async throws -> UserResponse {
+        let body = SetRoleRequest(role: role.rawValue)
+        let bodyData = try JSONEncoder().encode(body)
+        return try await request("PUT", path: "/users/\(userId)/role", body: bodyData)
+    }
+
+    /// Delete another user and all data owned by that user. Admin only.
+    func deleteUser(userId: Int) async throws {
+        try await rawDataRequest("DELETE", path: "/users/\(userId)")
+    }
+
     /// Clear stored token.
     func logout() {
         token = nil
@@ -175,7 +219,8 @@ actor APIClient {
         sex: String?,
         breed: String?,
         areaCode: String?,
-        preventiveTreatment: Bool?
+        preventiveTreatment: Bool?,
+        onProgress: UploadProgressHandler? = nil
     ) async throws -> SingleUploadResponse {
         var form = MultipartFormData()
         form.addFile(name: "file", filename: filename, mimeType: "image/jpeg", data: imageData)
@@ -195,7 +240,11 @@ actor APIClient {
             }
         }
 
-        return try await uploadRequest(path: "/upload/single", form: form)
+        return try await uploadRequest(
+            path: "/upload/single",
+            form: form,
+            onProgress: onProgress
+        )
     }
 
     /// List images. Admin sees all images; regular users see only their own.
@@ -305,7 +354,11 @@ actor APIClient {
     }
 
     /// Generic multipart upload helper.
-    private func uploadRequest<T: Decodable>(path: String, form: MultipartFormData) async throws -> T {
+    private func uploadRequest<T: Decodable>(
+        path: String,
+        form: MultipartFormData,
+        onProgress: UploadProgressHandler? = nil
+    ) async throws -> T {
         guard let url = URL(string: baseURL + path) else {
             throw APIError.invalidURL
         }
@@ -313,7 +366,7 @@ actor APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue(form.contentType, forHTTPHeaderField: "Content-Type")
-        request.httpBody = form.finalize()
+        request.timeoutInterval = 120
 
         if let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -322,7 +375,12 @@ actor APIClient {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            let uploadDelegate = UploadTaskDelegate(onProgress: onProgress)
+            (data, response) = try await session.upload(
+                for: request,
+                from: form.finalize(),
+                delegate: uploadDelegate
+            )
         } catch {
             throw APIError.networkError(error)
         }
@@ -353,10 +411,27 @@ actor APIClient {
     }
 
     private func parseErrorDetail(from data: Data) -> String {
-        // Backend returns {"detail": "..."} on errors
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let detail = json["detail"] as? String {
-            return detail
+        // Business errors use a string detail; FastAPI validation errors use an array.
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let detail = json["detail"] as? String {
+                return detail
+            }
+            if let validationErrors = json["detail"] as? [[String: Any]] {
+                let messages = validationErrors.compactMap { error -> String? in
+                    guard let message = error["msg"] as? String else { return nil }
+                    let location = (error["loc"] as? [Any])?
+                        .dropFirst()
+                        .map { String(describing: $0) }
+                        .joined(separator: ".")
+                    if let location, !location.isEmpty {
+                        return "\(location): \(message)"
+                    }
+                    return message
+                }
+                if !messages.isEmpty {
+                    return messages.joined(separator: "\n")
+                }
+            }
         }
         return String(data: data, encoding: .utf8) ?? "Unknown error"
     }
@@ -408,4 +483,8 @@ private struct RegisterRequest: Encodable {
     let email: String
     let username: String
     let password: String
+}
+
+private struct SetRoleRequest: Encodable {
+    let role: String
 }

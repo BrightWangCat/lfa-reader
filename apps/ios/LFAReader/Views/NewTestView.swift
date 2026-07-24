@@ -9,6 +9,7 @@ private enum NewTestDestination: Hashable {
 struct NewTestView: View {
     @State private var viewModel = NewTestViewModel()
     @State private var path: [NewTestDestination] = []
+    @State private var uploadTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -24,7 +25,7 @@ struct NewTestView: View {
                         successView(for: workflow)
                     }
                 }
-                .sheet(isPresented: $viewModel.showCamera) {
+                .fullScreenCover(isPresented: $viewModel.showCamera) {
                     CameraCaptureView { image in
                         viewModel.handleCapturedImage(image)
                         pushReviewIfNeeded()
@@ -159,11 +160,14 @@ struct NewTestView: View {
 
             Section {
                 Button {
-                    Task {
-                        await viewModel.upload()
-                        if viewModel.uploadComplete {
+                    guard uploadTask == nil else { return }
+                    uploadTask = Task {
+                        let succeeded = await viewModel.upload()
+                        if succeeded,
+                           viewModel.selectedWorkflowId == workflow.id {
                             path.append(.success(workflow))
                         }
+                        uploadTask = nil
                     }
                 } label: {
                     Label("Submit Image", systemImage: "arrow.up.circle.fill")
@@ -186,11 +190,27 @@ struct NewTestView: View {
                 .disabled(viewModel.isUploading)
             }
         }
+        .disabled(viewModel.isUploading)
         .navigationTitle("Review & Submit")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(viewModel.isUploading)
+        .onDisappear {
+            guard !viewModel.uploadComplete else {
+                uploadTask = nil
+                return
+            }
+            uploadTask?.cancel()
+            uploadTask = nil
+            viewModel.cancelUpload()
+        }
         .overlay {
             if viewModel.isUploading {
-                UploadProgressView(message: "Uploading image...")
+                UploadProgressView(
+                    message: (viewModel.uploadProgress ?? 0) >= 1
+                        ? "Processing image..."
+                        : "Uploading image...",
+                    progress: viewModel.uploadProgress
+                )
             }
         }
     }

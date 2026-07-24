@@ -20,6 +20,8 @@ struct ImageDetailView: View {
     @State private var viewModel: ImageDetailViewModel
     @State private var zoom: CGFloat = 1.0
     @State private var lastZoom: CGFloat = 1.0
+    @State private var imageOffset: CGSize = .zero
+    @State private var lastImageOffset: CGSize = .zero
     @State private var imageVariant: ImageVariant = .processed
 
     init(imageId: Int, initialImage: TestImage? = nil) {
@@ -32,6 +34,9 @@ struct ImageDetailView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         imageSection(image)
+                        if let error = viewModel.detailError {
+                            loadErrorSection(error)
+                        }
                         if !image.warnings.isEmpty {
                             warningsSection(image.warnings)
                         }
@@ -56,6 +61,7 @@ struct ImageDetailView: View {
             await viewModel.loadDetailsIfNeeded()
         }
         .task(id: imageVariant) {
+            resetImageTransform()
             await viewModel.loadImage(original: imageVariant == .original)
         }
         .onDisappear {
@@ -71,7 +77,8 @@ struct ImageDetailView: View {
                         .resizable()
                         .scaledToFit()
                         .scaleEffect(zoom)
-                        .gesture(
+                        .offset(imageOffset)
+                        .simultaneousGesture(
                             MagnifyGesture()
                                 .onChanged { value in
                                     zoom = min(max(lastZoom * value.magnification, 1.0), 5.0)
@@ -79,12 +86,33 @@ struct ImageDetailView: View {
                                 .onEnded { value in
                                     zoom = min(max(lastZoom * value.magnification, 1.0), 5.0)
                                     lastZoom = zoom
+                                    if zoom == 1.0 {
+                                        imageOffset = .zero
+                                        lastImageOffset = .zero
+                                    }
+                                }
+                        )
+                        .simultaneousGesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    guard zoom > 1.0 else { return }
+                                    imageOffset = CGSize(
+                                        width: lastImageOffset.width + value.translation.width,
+                                        height: lastImageOffset.height + value.translation.height
+                                    )
+                                }
+                                .onEnded { _ in
+                                    guard zoom > 1.0 else {
+                                        imageOffset = .zero
+                                        lastImageOffset = .zero
+                                        return
+                                    }
+                                    lastImageOffset = imageOffset
                                 }
                         )
                         .onTapGesture(count: 2) {
                             withAnimation {
-                                zoom = 1.0
-                                lastZoom = 1.0
+                                resetImageTransform()
                             }
                         }
                 } else if viewModel.isLoadingImage {
@@ -113,6 +141,27 @@ struct ImageDetailView: View {
                 .pickerStyle(.segmented)
             }
         }
+    }
+
+    private func loadErrorSection(_ error: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Image Loading Failed", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+                .foregroundStyle(.red)
+            Text(error)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button("Retry") {
+                Task {
+                    await viewModel.refreshImage()
+                    await viewModel.loadImage(original: imageVariant == .original)
+                }
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func warningsSection(_ warnings: [String]) -> some View {
@@ -186,7 +235,7 @@ struct ImageDetailView: View {
                     Task { await viewModel.reclassify() }
                 } label: {
                     Label(
-                        image.cvResult == nil ? "Run Classification" : "Re-run Classification",
+                        classificationButtonLabel(for: image),
                         systemImage: "arrow.clockwise"
                     )
                     .frame(maxWidth: .infinity)
@@ -194,7 +243,8 @@ struct ImageDetailView: View {
                 .buttonStyle(.borderedProminent)
             }
 
-            if let error = viewModel.classificationError {
+            if let error = viewModel.classificationError
+                ?? (image.readingStatus == "failed" ? image.readingError : nil) {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -236,6 +286,17 @@ struct ImageDetailView: View {
             }
             .buttonStyle(.bordered)
             .disabled(viewModel.selectedCorrection.isEmpty || viewModel.isSavingCorrection)
+
+            if image.manualCorrection == nil, image.cvResult != nil {
+                Button {
+                    Task { await viewModel.approveCVResult() }
+                } label: {
+                    Label("Approve CV Result", systemImage: "checkmark.seal")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.isSavingCorrection)
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -297,6 +358,9 @@ struct ImageDetailView: View {
             Text("Details")
                 .font(.headline)
 
+            if let disease = image.diseaseCategory {
+                LabeledContent("Disease", value: disease)
+            }
             LabeledContent("Filename", value: image.originalFilename)
             LabeledContent("Size", value: formatFileSize(image.fileSize))
             LabeledContent("Preprocessed", value: image.isPreprocessed ? "Yes" : "No")
@@ -310,37 +374,32 @@ struct ImageDetailView: View {
 
     private func tickBorneAnalyteRows(_ image: TestImage) -> [(String, String)] {
         guard let analytes = image.finalResultDetail?.analytes else { return [] }
-        let order = [
-            ("ehrlichia", "Ehrlichia"),
-            ("lyme", "Lyme"),
-            ("anaplasma", "Anaplasma"),
-            ("heartworm", "Heartworm"),
-        ]
-        return order.compactMap { item in
-            let (key, label) = item
-            guard let value = analytes[key] else { return nil }
-            return (label, value)
+        return TickBorneResult.analytes.compactMap { analyte in
+            guard let value = analytes[analyte.key] else { return nil }
+            return (analyte.label, value)
         }
     }
 
     private func correctionOptions(for image: TestImage) -> [String] {
-        if image.patientInfo?.diseaseCategory == "Tick Borne" {
-            return tickBorneCorrectionOptions()
+        let workflow = image.diseaseCategory ?? image.patientInfo?.diseaseCategory
+        if workflow == "Tick Borne" {
+            return TickBorneResult.correctionOptions
         }
         return ClassificationCategory.allCases.map(\.rawValue)
     }
 
-    private func tickBorneCorrectionOptions() -> [String] {
-        let analytes = ["Ehrlichia", "Lyme", "Anaplasma", "Heartworm"]
-        var options = ["Negative"]
-        for mask in 1..<(1 << analytes.count) {
-            let labels = analytes.enumerated().compactMap { index, label in
-                (mask & (1 << index)) != 0 ? label : nil
-            }
-            options.append("Positive: \(labels.joined(separator: ", "))")
+    private func classificationButtonLabel(for image: TestImage) -> String {
+        if image.readingStatus == "failed" {
+            return "Retry Classification"
         }
-        options.append("Invalid")
-        return options
+        return image.cvResult == nil ? "Run Classification" : "Re-run Classification"
+    }
+
+    private func resetImageTransform() {
+        zoom = 1.0
+        lastZoom = 1.0
+        imageOffset = .zero
+        lastImageOffset = .zero
     }
 
     private func formatFileSize(_ bytes: Int) -> String {

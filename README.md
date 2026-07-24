@@ -31,7 +31,7 @@ This repository is **not** distributed under an OSI-approved open source license
 | Columbus temperature context for weekly trends | Yes | Yes |
 | Patient metadata distribution charts | Yes | Yes |
 | Area code geographic heatmap | Yes | Yes |
-| Admin user management | Yes | No |
+| Admin user management | Yes | Yes |
 
 ### Classification Output
 

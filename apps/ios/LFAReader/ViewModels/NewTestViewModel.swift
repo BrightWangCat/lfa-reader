@@ -3,6 +3,8 @@ import UIKit
 
 @Observable
 class NewTestViewModel {
+    private static let maximumJPEGSize = 20 * 1024 * 1024
+
     // MARK: - Image source
 
     var showCamera = false
@@ -15,7 +17,7 @@ class NewTestViewModel {
     // MARK: - Patient info
 
     var selectedWorkflowId = ""
-    var shareInfo = false
+    var shareInfo: Bool?
     var age = ""
     var sex = ""
     var breed = ""
@@ -25,11 +27,13 @@ class NewTestViewModel {
     // MARK: - Upload state
 
     var isUploading = false
+    var uploadProgress: Double?
     var uploadError: String?
     var uploadComplete = false
     var uploadResult: SingleUploadResponse?
 
     private let api = APIClient.shared
+    private var activeUploadId: UUID?
 
     // MARK: - Image selection
 
@@ -51,10 +55,15 @@ class NewTestViewModel {
     }
 
     var canUpload: Bool {
-        guard selectedWorkflow != nil, selectedImage != nil, !isUploading else {
+        guard selectedWorkflow != nil,
+              selectedImage != nil,
+              shareInfo != nil,
+              !isUploading else {
             return false
         }
-        if shareInfo && (selectedWorkflow?.needsPreventiveTreatment == true) && preventiveTreatment == nil {
+        if shareInfo == true &&
+            (selectedWorkflow?.needsPreventiveTreatment == true) &&
+            preventiveTreatment == nil {
             return false
         }
         return true
@@ -62,9 +71,10 @@ class NewTestViewModel {
 
     func selectWorkflow(_ workflowId: String) {
         guard selectedWorkflowId != workflowId else { return }
+        invalidateUpload()
         selectedWorkflowId = workflowId
         selectedImage = nil
-        shareInfo = false
+        shareInfo = nil
         age = ""
         sex = ""
         breed = ""
@@ -78,28 +88,49 @@ class NewTestViewModel {
     // MARK: - Upload
 
     @MainActor
-    func upload() async {
+    func upload() async -> Bool {
         guard let image = selectedImage,
               let data = image.jpegData(compressionQuality: 0.85) else {
             uploadError = "No image selected"
-            return
+            return false
+        }
+        guard data.count <= Self.maximumJPEGSize else {
+            uploadError = "Image exceeds the 20 MiB upload limit"
+            return false
         }
         guard let workflow = selectedWorkflow else {
             uploadError = "Please choose a disease workflow"
-            return
+            return false
+        }
+        guard let shareInfo else {
+            uploadError = "Please choose whether to share patient information"
+            return false
         }
         if shareInfo && workflow.needsPreventiveTreatment && preventiveTreatment == nil {
             uploadError = "Please answer the preventive treatment question"
-            return
+            return false
         }
 
+        let uploadId = UUID()
+        activeUploadId = uploadId
         isUploading = true
+        uploadProgress = 0
         uploadError = nil
+        uploadComplete = false
+        uploadResult = nil
+
+        defer {
+            if activeUploadId == uploadId {
+                activeUploadId = nil
+                isUploading = false
+                uploadProgress = nil
+            }
+        }
 
         let filename = "photo_\(Int(Date().timeIntervalSince1970)).jpg"
 
         do {
-            uploadResult = try await api.uploadSingle(
+            let result = try await api.uploadSingle(
                 imageData: data,
                 filename: filename,
                 diseaseCategory: workflow.label,
@@ -108,32 +139,55 @@ class NewTestViewModel {
                 sex: shareInfo ? sex : nil,
                 breed: shareInfo ? breed : nil,
                 areaCode: shareInfo ? areaCode : nil,
-                preventiveTreatment: shareInfo ? preventiveTreatment : nil
+                preventiveTreatment: shareInfo ? preventiveTreatment : nil,
+                onProgress: { [weak self] progress in
+                    guard self?.activeUploadId == uploadId else { return }
+                    self?.uploadProgress = progress
+                }
             )
-            uploadComplete = true
-        } catch {
-            uploadError = error.localizedDescription
-        }
 
-        isUploading = false
+            guard activeUploadId == uploadId else {
+                return false
+            }
+            uploadResult = result
+            uploadProgress = 1
+            uploadComplete = true
+            return true
+        } catch {
+            guard activeUploadId == uploadId else {
+                return false
+            }
+            uploadError = error.localizedDescription
+            return false
+        }
     }
 
     // MARK: - Reset
 
+    func cancelUpload() {
+        invalidateUpload()
+    }
+
     func reset(keepWorkflow: Bool = false) {
+        invalidateUpload()
         selectedImage = nil
         if !keepWorkflow {
             selectedWorkflowId = ""
         }
-        shareInfo = false
+        shareInfo = nil
         age = ""
         sex = ""
         breed = ""
         areaCode = ""
         preventiveTreatment = nil
-        isUploading = false
         uploadError = nil
         uploadComplete = false
         uploadResult = nil
+    }
+
+    private func invalidateUpload() {
+        activeUploadId = nil
+        isUploading = false
+        uploadProgress = nil
     }
 }

@@ -25,6 +25,14 @@ struct ContentView: View {
                             Label("Statistics", systemImage: "chart.pie.fill")
                         }
 
+                    if let currentUser = authViewModel.currentUser,
+                       currentUser.normalizedRole == .admin {
+                        UserManagementView(currentUserId: currentUser.id)
+                            .tabItem {
+                                Label("Users", systemImage: "person.3.fill")
+                            }
+                    }
+
                     SettingsView()
                         .tabItem {
                             Label("Settings", systemImage: "gearshape.fill")

@@ -9,6 +9,8 @@ struct ResultsView: View {
             Group {
                 if viewModel.isLoading && viewModel.images.isEmpty {
                     ProgressView("Loading results...")
+                } else if viewModel.errorMessage != nil && viewModel.images.isEmpty {
+                    errorState
                 } else if viewModel.images.isEmpty {
                     emptyState
                 } else {
@@ -25,7 +27,13 @@ struct ResultsView: View {
             .refreshable {
                 await viewModel.loadImages()
             }
-            .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
+            .alert(
+                "Error",
+                isPresented: Binding(
+                    get: { viewModel.errorMessage != nil && !viewModel.images.isEmpty },
+                    set: { if !$0 { viewModel.errorMessage = nil } }
+                )
+            ) {
                 Button("OK") { viewModel.errorMessage = nil }
             } message: {
                 Text(viewModel.errorMessage ?? "")
@@ -41,6 +49,19 @@ struct ResultsView: View {
             } message: {
                 Text("Delete this image? This cannot be undone.")
             }
+        }
+    }
+
+    private var errorState: some View {
+        ContentUnavailableView {
+            Label("Unable to Load Results", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(viewModel.errorMessage ?? "An unknown error occurred.")
+        } actions: {
+            Button("Retry") {
+                Task { await viewModel.loadImages() }
+            }
+            .buttonStyle(.borderedProminent)
         }
     }
 
@@ -123,13 +144,20 @@ struct ResultsView: View {
                     .padding(.top, 4)
             }
 
-            HStack(spacing: 10) {
-                Text(image.createdAt.formattedDate)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) {
+                    Text(image.createdAt.formattedDate)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
 
-                if image.manualCorrection != nil {
-                    capsuleLabel(text: "Corrected", tint: .orange)
+                    if image.manualCorrection != nil {
+                        capsuleLabel(text: "Corrected", tint: .orange)
+                    }
+                }
+
+                if let username = image.username {
+                    Label("Uploaded by \(username)", systemImage: "person")
+                        .lineLimit(1)
                 }
             }
             .font(.caption)

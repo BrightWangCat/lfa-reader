@@ -21,7 +21,12 @@ actor ImageCache {
     }
 
     func store(_ image: UIImage, for id: Int, original: Bool) {
-        cache.setObject(image, forKey: cacheKey(for: id, original: original))
+        let cost = image.cgImage.map { $0.bytesPerRow * $0.height } ?? 0
+        cache.setObject(
+            image,
+            forKey: cacheKey(for: id, original: original),
+            cost: cost
+        )
     }
 
     func clear() {

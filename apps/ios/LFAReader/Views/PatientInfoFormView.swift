@@ -3,7 +3,7 @@ import SwiftUI
 /// Reusable form section for entering optional patient metadata.
 struct PatientInfoFormView: View {
     let workflow: DiseaseWorkflow?
-    @Binding var shareInfo: Bool
+    @Binding var shareInfo: Bool?
     @Binding var age: String
     @Binding var sex: String
     @Binding var breed: String
@@ -12,9 +12,25 @@ struct PatientInfoFormView: View {
 
     var body: some View {
         Section("Patient Information") {
-            Toggle("Share patient info", isOn: $shareInfo)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Would you like to share confidential patient information?")
+                    .font(.subheadline)
 
-            if shareInfo {
+                Picker("Share patient information", selection: $shareInfo) {
+                    Text("Yes").tag(true as Bool?)
+                    Text("No").tag(false as Bool?)
+                }
+                .pickerStyle(.segmented)
+
+                if shareInfo == nil {
+                    Text("Select Yes or No before submitting.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.vertical, 2)
+
+            if shareInfo == true {
                 if let workflow {
                     LabeledContent("Species", value: workflow.species.displayName)
 

@@ -1,29 +1,134 @@
 import SwiftUI
 import MapKit
 
-/// Displays Columbus OH zip code areas colored by positive case density.
-struct ZipCodeMapView: UIViewRepresentable {
-    /// Per-zip data: { "43215": { "Positive L": 2, "Positive I": 1, "Positive L+I": 0 } }
+/// Displays Columbus, OH zip-code polygons colored by total positive cases.
+struct ZipCodeMapView: View {
+    /// Per-area data: { "43215": { "Positive": 2, "Positive L": 1, ... } }
+    let zipData: [String: [String: Int]]
+
+    private var maxTotal: Int {
+        ZipCodeMapStyle.maximumTotal(in: zipData)
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZipCodePolygonMap(zipData: zipData)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color(.separator), lineWidth: 0.5)
+                }
+
+            HStack(spacing: 6) {
+                Text("0")
+
+                HStack(spacing: 0) {
+                    ForEach(Array(ZipCodeMapStyle.colorScale.enumerated()), id: \.offset) { _, color in
+                        Color(uiColor: color)
+                            .frame(width: 18, height: 12)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 2))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 2)
+                        .stroke(Color(.separator), lineWidth: 0.5)
+                }
+
+                Text(maxTotal > 0 ? "\(maxTotal)" : "max")
+                Text("(total positive cases)")
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private enum ZipCodeMapStyle {
+    static let colorScale: [UIColor] = [
+        UIColor(red: 0.969, green: 0.969, blue: 0.969, alpha: 1), // #f7f7f7
+        UIColor(red: 0.992, green: 0.831, blue: 0.620, alpha: 1), // #fdd49e
+        UIColor(red: 0.992, green: 0.733, blue: 0.518, alpha: 1), // #fdbb84
+        UIColor(red: 0.988, green: 0.553, blue: 0.349, alpha: 1), // #fc8d59
+        UIColor(red: 0.937, green: 0.396, blue: 0.282, alpha: 1), // #ef6548
+        UIColor(red: 0.843, green: 0.188, blue: 0.122, alpha: 1), // #d7301f
+        UIColor(red: 0.600, green: 0.000, blue: 0.000, alpha: 1), // #990000
+    ]
+
+    static func total(in categoryCounts: [String: Int]) -> Int {
+        GlobalStats.positiveCategories.reduce(0) {
+            $0 + max(categoryCounts[$1] ?? 0, 0)
+        }
+    }
+
+    static func maximumTotal(in zipData: [String: [String: Int]]) -> Int {
+        zipData.values.map(total(in:)).max() ?? 0
+    }
+
+    static func fillColor(total: Int, maximum: Int) -> UIColor {
+        guard total > 0, maximum > 0 else {
+            return colorScale[0]
+        }
+        let ratio = min(Double(total) / Double(maximum), 1)
+        let index = min(
+            Int(round(ratio * Double(colorScale.count - 1))),
+            colorScale.count - 1
+        )
+        return colorScale[index]
+    }
+
+    static func categoryColor(_ category: String) -> UIColor {
+        switch category {
+        case "Positive":
+            return UIColor(red: 0.773, green: 0.188, blue: 0.188, alpha: 1)
+        case "Positive L":
+            return .systemRed
+        case "Positive I":
+            return .systemOrange
+        case "Positive L+I":
+            return .systemPurple
+        default:
+            return .systemGray
+        }
+    }
+
+    static func zeroFilled(_ categoryCounts: [String: Int]?) -> [String: Int] {
+        var result = categoryCounts ?? [:]
+        for category in GlobalStats.positiveCategories where result[category] == nil {
+            result[category] = 0
+        }
+        return result
+    }
+}
+
+private struct ZipCodePolygonMap: UIViewRepresentable {
     let zipData: [String: [String: Int]]
 
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
         mapView.delegate = context.coordinator
 
-        // Center on Columbus, OH
         let center = CLLocationCoordinate2D(latitude: 39.96, longitude: -82.99)
-        let region = MKCoordinateRegion(center: center, span: MKCoordinateSpan(latitudeDelta: 0.35, longitudeDelta: 0.35))
-        mapView.setRegion(region, animated: false)
+        let span = MKCoordinateSpan(latitudeDelta: 0.35, longitudeDelta: 0.35)
+        mapView.setRegion(MKCoordinateRegion(center: center, span: span), animated: false)
 
-        // Load and render polygons
+        let tapGesture = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleMapTap(_:))
+        )
+        tapGesture.cancelsTouchesInView = false
+        mapView.addGestureRecognizer(tapGesture)
+
         if let polygons = loadGeoJSON() {
             mapView.addOverlays(polygons)
         }
-
         return mapView
     }
 
-    func updateUIView(_ uiView: MKMapView, context: Context) {}
+    func updateUIView(_ mapView: MKMapView, context: Context) {
+        context.coordinator.update(zipData: zipData, on: mapView)
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(zipData: zipData)
@@ -40,118 +145,288 @@ struct ZipCodeMapView: UIViewRepresentable {
         }
 
         var polygons: [MKPolygon] = []
-
         for feature in features {
             guard let properties = feature["properties"] as? [String: Any],
                   let zip = properties["zip"] as? String,
                   let geometry = feature["geometry"] as? [String: Any],
                   let type = geometry["type"] as? String,
-                  let coords = geometry["coordinates"] as? [Any] else {
+                  let coordinates = geometry["coordinates"] as? [Any] else {
                 continue
             }
 
-            let mkPolygons: [MKPolygon]
-            if type == "Polygon", let rings = coords as? [[[Double]]] {
-                mkPolygons = [polygonFromRings(rings, title: zip)]
-            } else if type == "MultiPolygon", let multiRings = coords as? [[[[Double]]]] {
-                mkPolygons = multiRings.map { polygonFromRings($0, title: zip) }
-            } else {
-                continue
+            if type == "Polygon", let rings = coordinates as? [[[Double]]] {
+                if let polygon = polygonFromRings(rings, title: zip) {
+                    polygons.append(polygon)
+                }
+            } else if type == "MultiPolygon",
+                      let multiRings = coordinates as? [[[[Double]]]] {
+                polygons.append(
+                    contentsOf: multiRings.compactMap {
+                        polygonFromRings($0, title: zip)
+                    }
+                )
             }
-
-            polygons.append(contentsOf: mkPolygons)
         }
-
         return polygons
     }
 
-    private func polygonFromRings(_ rings: [[[Double]]], title: String) -> MKPolygon {
-        let outerRing = rings[0]
-        var coordinates = outerRing.map {
-            CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0])
+    private func polygonFromRings(
+        _ rings: [[[Double]]],
+        title: String
+    ) -> MKPolygon? {
+        guard let outerRing = rings.first, !outerRing.isEmpty else {
+            return nil
+        }
+        var coordinates = outerRing.compactMap { pair -> CLLocationCoordinate2D? in
+            guard pair.count >= 2 else { return nil }
+            return CLLocationCoordinate2D(latitude: pair[1], longitude: pair[0])
+        }
+        guard !coordinates.isEmpty else {
+            return nil
         }
 
-        let polygon: MKPolygon
-        if rings.count > 1 {
-            let interiors = rings[1...].map { ring -> MKPolygon in
-                var interiorCoords = ring.map {
-                    CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0])
-                }
-                return MKPolygon(coordinates: &interiorCoords, count: interiorCoords.count)
+        let interiorPolygons = rings.dropFirst().compactMap { ring -> MKPolygon? in
+            var interiorCoordinates = ring.compactMap { pair -> CLLocationCoordinate2D? in
+                guard pair.count >= 2 else { return nil }
+                return CLLocationCoordinate2D(latitude: pair[1], longitude: pair[0])
             }
-            polygon = MKPolygon(coordinates: &coordinates, count: coordinates.count, interiorPolygons: interiors)
-        } else {
-            polygon = MKPolygon(coordinates: &coordinates, count: coordinates.count)
+            guard !interiorCoordinates.isEmpty else { return nil }
+            return MKPolygon(
+                coordinates: &interiorCoordinates,
+                count: interiorCoordinates.count
+            )
         }
 
+        let polygon = MKPolygon(
+            coordinates: &coordinates,
+            count: coordinates.count,
+            interiorPolygons: interiorPolygons
+        )
         polygon.title = title
         return polygon
     }
 
     // MARK: - Coordinator
 
-    class Coordinator: NSObject, MKMapViewDelegate {
-        let zipData: [String: [String: Int]]
-
-        /// 7-stop color scale from light gray to dark red
-        private let colorScale: [UIColor] = [
-            UIColor(red: 0.969, green: 0.969, blue: 0.969, alpha: 1), // #f7f7f7
-            UIColor(red: 0.992, green: 0.839, blue: 0.808, alpha: 1), // #fdd6ce
-            UIColor(red: 0.988, green: 0.682, blue: 0.624, alpha: 1), // #fcae9f
-            UIColor(red: 0.984, green: 0.502, blue: 0.447, alpha: 1), // #fb8072
-            UIColor(red: 0.878, green: 0.322, blue: 0.278, alpha: 1), // #e05247
-            UIColor(red: 0.722, green: 0.161, blue: 0.161, alpha: 1), // #b82929
-            UIColor(red: 0.600, green: 0.000, blue: 0.000, alpha: 1), // #990000
-        ]
-
-        private var maxTotal: Int = 1
+    final class Coordinator: NSObject, MKMapViewDelegate {
+        private var zipData: [String: [String: Int]]
+        private var maxTotal: Int
+        private var detailHost: UIHostingController<ZipCodeDetailView>?
 
         init(zipData: [String: [String: Int]]) {
             self.zipData = zipData
-            self.maxTotal = max(1, zipData.values.map { $0.values.reduce(0, +) }.max() ?? 1)
+            self.maxTotal = ZipCodeMapStyle.maximumTotal(in: zipData)
+            super.init()
         }
 
-        func mapView(_ mapView: MKMapView, rendererFor overlay: any MKOverlay) -> MKOverlayRenderer {
+        func update(zipData: [String: [String: Int]], on mapView: MKMapView) {
+            guard self.zipData != zipData else {
+                return
+            }
+
+            self.zipData = zipData
+            maxTotal = ZipCodeMapStyle.maximumTotal(in: zipData)
+
+            for case let polygon as MKPolygon in mapView.overlays {
+                if let renderer = mapView.renderer(for: polygon) as? MKPolygonRenderer {
+                    style(renderer, for: polygon)
+                    renderer.setNeedsDisplay()
+                }
+            }
+
+            if let selection = mapView.annotations.first(
+                where: { $0 is ZipCodeSelectionAnnotation }
+            ) as? ZipCodeSelectionAnnotation {
+                let zip = selection.zip
+                let coordinate = selection.coordinate
+                mapView.removeAnnotation(selection)
+                showDetails(for: zip, at: coordinate, on: mapView)
+            }
+        }
+
+        func mapView(
+            _ mapView: MKMapView,
+            rendererFor overlay: any MKOverlay
+        ) -> MKOverlayRenderer {
             guard let polygon = overlay as? MKPolygon else {
                 return MKOverlayRenderer(overlay: overlay)
             }
 
             let renderer = MKPolygonRenderer(polygon: polygon)
-            let zip = polygon.title ?? ""
-            let total = zipData[zip]?.values.reduce(0, +) ?? 0
-
-            let ratio = Double(total) / Double(maxTotal)
-            let idx = min(Int(round(ratio * 6)), 6)
-            renderer.fillColor = colorScale[idx].withAlphaComponent(0.7)
-            renderer.strokeColor = UIColor.darkGray.withAlphaComponent(0.5)
-            renderer.lineWidth = 1
-
+            style(renderer, for: polygon)
             return renderer
         }
 
-        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {}
+        func mapView(
+            _ mapView: MKMapView,
+            viewFor annotation: any MKAnnotation
+        ) -> MKAnnotationView? {
+            guard let selection = annotation as? ZipCodeSelectionAnnotation else {
+                return nil
+            }
+
+            let reuseIdentifier = "ZipCodeSelection"
+            let view = (mapView.dequeueReusableAnnotationView(
+                withIdentifier: reuseIdentifier
+            ) as? MKMarkerAnnotationView) ?? MKMarkerAnnotationView(
+                annotation: selection,
+                reuseIdentifier: reuseIdentifier
+            )
+            view.annotation = selection
+            view.canShowCallout = true
+            view.markerTintColor = .systemRed
+            view.glyphImage = UIImage(systemName: "mappin.and.ellipse")
+
+            let host = UIHostingController(
+                rootView: ZipCodeDetailView(data: selection.categoryCounts)
+            )
+            host.view.backgroundColor = .clear
+            let size = host.sizeThatFits(
+                in: CGSize(width: 220, height: 260)
+            )
+            host.view.frame = CGRect(origin: .zero, size: size)
+            view.detailCalloutAccessoryView = host.view
+            detailHost = host
+            return view
+        }
+
+        @objc func handleMapTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended,
+                  let mapView = recognizer.view as? MKMapView else {
+                return
+            }
+
+            let point = recognizer.location(in: mapView)
+            if isInsideAnnotationView(mapView.hitTest(point, with: nil)) {
+                return
+            }
+
+            let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+            let mapPoint = MKMapPoint(coordinate)
+            let selectedPolygon = mapView.overlays.reversed().compactMap {
+                $0 as? MKPolygon
+            }.first { polygon in
+                contains(mapPoint, in: polygon, on: mapView)
+            }
+
+            guard let polygon = selectedPolygon, let zip = polygon.title else {
+                clearSelection(on: mapView)
+                return
+            }
+            showDetails(for: zip, at: coordinate, on: mapView)
+        }
+
+        private func style(
+            _ renderer: MKPolygonRenderer,
+            for polygon: MKPolygon
+        ) {
+            let zip = polygon.title ?? ""
+            let total = ZipCodeMapStyle.total(in: zipData[zip] ?? [:])
+            renderer.fillColor = ZipCodeMapStyle.fillColor(
+                total: total,
+                maximum: maxTotal
+            ).withAlphaComponent(0.7)
+            renderer.strokeColor = UIColor.darkGray.withAlphaComponent(0.5)
+            renderer.lineWidth = 1
+        }
+
+        private func contains(
+            _ mapPoint: MKMapPoint,
+            in polygon: MKPolygon,
+            on mapView: MKMapView
+        ) -> Bool {
+            guard polygon.boundingMapRect.contains(mapPoint),
+                  let renderer = mapView.renderer(for: polygon) as? MKPolygonRenderer else {
+                return false
+            }
+            if renderer.path == nil {
+                renderer.createPath()
+            }
+            guard let path = renderer.path else {
+                return false
+            }
+            return path.contains(
+                renderer.point(for: mapPoint),
+                using: .evenOdd
+            )
+        }
+
+        private func showDetails(
+            for zip: String,
+            at coordinate: CLLocationCoordinate2D,
+            on mapView: MKMapView
+        ) {
+            clearSelection(on: mapView)
+            let annotation = ZipCodeSelectionAnnotation(
+                coordinate: coordinate,
+                zip: zip,
+                categoryCounts: ZipCodeMapStyle.zeroFilled(zipData[zip])
+            )
+            mapView.addAnnotation(annotation)
+            mapView.selectAnnotation(annotation, animated: true)
+        }
+
+        private func clearSelection(on mapView: MKMapView) {
+            let selections = mapView.annotations.compactMap {
+                $0 as? ZipCodeSelectionAnnotation
+            }
+            mapView.removeAnnotations(selections)
+            detailHost = nil
+        }
+
+        private func isInsideAnnotationView(_ hitView: UIView?) -> Bool {
+            var current = hitView
+            while let view = current {
+                if view is MKAnnotationView {
+                    return true
+                }
+                current = view.superview
+            }
+            return false
+        }
     }
 }
 
-/// Popup detail view for a selected zip code.
-struct ZipCodeDetailView: View {
+private final class ZipCodeSelectionAnnotation: NSObject, MKAnnotation {
+    @objc dynamic var coordinate: CLLocationCoordinate2D
     let zip: String
+    let categoryCounts: [String: Int]
+
+    var title: String? {
+        "Area / Zip Code: \(zip)"
+    }
+
+    init(
+        coordinate: CLLocationCoordinate2D,
+        zip: String,
+        categoryCounts: [String: Int]
+    ) {
+        self.coordinate = coordinate
+        self.zip = zip
+        self.categoryCounts = categoryCounts
+        super.init()
+    }
+}
+
+/// Callout detail for a selected Columbus area / zip-code polygon.
+struct ZipCodeDetailView: View {
     let data: [String: Int]
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Zip: \(zip)")
-                .font(.headline)
+    private var total: Int {
+        ZipCodeMapStyle.total(in: data)
+    }
 
-            ForEach(["Positive L", "Positive I", "Positive L+I"], id: \.self) { cat in
-                HStack {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ForEach(GlobalStats.positiveCategories, id: \.self) { category in
+                HStack(spacing: 6) {
                     Circle()
-                        .fill(catColor(cat))
+                        .fill(Color(uiColor: ZipCodeMapStyle.categoryColor(category)))
                         .frame(width: 8, height: 8)
-                    Text(cat)
+                    Text(category)
                         .font(.caption)
-                    Spacer()
-                    Text("\(data[cat] ?? 0)")
+                    Spacer(minLength: 12)
+                    Text("\(data[category] ?? 0)")
                         .font(.caption.weight(.semibold))
                 }
             }
@@ -161,21 +436,12 @@ struct ZipCodeDetailView: View {
             HStack {
                 Text("Total Positive")
                     .font(.caption.weight(.bold))
-                Spacer()
-                Text("\(data.values.reduce(0, +))")
+                Spacer(minLength: 12)
+                Text("\(total)")
                     .font(.caption.weight(.bold))
             }
         }
-        .padding()
-        .frame(width: 180)
-    }
-
-    private func catColor(_ cat: String) -> Color {
-        switch cat {
-        case "Positive L": .red
-        case "Positive I": .orange
-        case "Positive L+I": .purple
-        default: .gray
-        }
+        .frame(width: 200)
+        .padding(.vertical, 4)
     }
 }

@@ -1,9 +1,20 @@
 import Foundation
 
 /// User roles matching the backend RBAC system
-enum UserRole: String, Codable {
+enum UserRole: String, Codable, CaseIterable, Identifiable {
     case user
     case admin
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .user:
+            return "User"
+        case .admin:
+            return "Admin"
+        }
+    }
 }
 
 /// User response from the API
@@ -14,15 +25,13 @@ struct UserResponse: Codable, Identifiable {
     let role: String
     let createdAt: String
 
+    /// Normalizes any legacy regular-user role to the current `user` role.
+    var normalizedRole: UserRole {
+        role == UserRole.admin.rawValue ? .admin : .user
+    }
+
     var displayRole: String {
-        switch role {
-        case UserRole.admin.rawValue:
-            return "Admin"
-        case UserRole.user.rawValue, "single":
-            return "User"
-        default:
-            return role
-        }
+        normalizedRole.displayName
     }
 
     enum CodingKeys: String, CodingKey {

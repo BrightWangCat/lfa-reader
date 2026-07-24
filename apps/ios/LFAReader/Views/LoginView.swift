@@ -21,7 +21,7 @@ struct LoginView: View {
                         Text("LFA Reader")
                             .font(.largeTitle.bold())
 
-                        Text("FeLV/FIV Lateral Flow Assay")
+                        Text("Veterinary Diagnostic Image Analysis")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }

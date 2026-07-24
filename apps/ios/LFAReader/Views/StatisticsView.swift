@@ -6,9 +6,12 @@ struct StatisticsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Choose a disease workflow to view aggregated statistics.")
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 4)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Aggregated results from all users' tests with patient information")
+                        Text("Choose a disease workflow to view statistics.")
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 4)
                 }
 
                 ForEach(DiseaseWorkflow.groupedByCategory(), id: \.category) { group in
@@ -23,7 +26,7 @@ struct StatisticsView: View {
                     }
                 }
             }
-            .navigationTitle("Statistics")
+            .navigationTitle("Global Test Statistics")
             .listStyle(.insetGrouped)
         }
     }
@@ -64,8 +67,15 @@ private struct WorkflowStatisticsDetailView: View {
     let workflow: DiseaseWorkflow
     @State private var viewModel: StatisticsViewModel
 
-    private let pieCategories = ["Positive L", "Positive I", "Positive L+I"]
-    private let pieDimensions = ["species", "age", "sex", "breed", "preventive_treatment"]
+    private let pieCategories = GlobalStats.positiveCategories
+
+    private var pieDimensions: [String] {
+        var dimensions = ["species", "age", "sex", "breed", "area_code"]
+        if workflow.needsPreventiveTreatment {
+            dimensions.append("preventive_treatment")
+        }
+        return dimensions
+    }
 
     private let slicePalette: [Color] = [
         .blue, .orange, .green, .red, .purple,
@@ -83,7 +93,16 @@ private struct WorkflowStatisticsDetailView: View {
             if viewModel.isLoading && viewModel.stats == nil {
                 ProgressView("Loading statistics...")
             } else if let error = viewModel.errorMessage {
-                ContentUnavailableView("Error", systemImage: "exclamationmark.triangle", description: Text(error))
+                ContentUnavailableView {
+                    Label("Unable to Load Statistics", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(error)
+                } actions: {
+                    Button("Retry") {
+                        Task { await viewModel.loadStats() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
             } else if let stats = viewModel.stats {
                 if stats.total == 0 {
                     ContentUnavailableView("No Data", systemImage: "chart.pie", description: Text("No test results with patient information are available for this workflow."))
@@ -251,7 +270,7 @@ private struct WorkflowStatisticsDetailView: View {
             }
             .frame(height: 220)
 
-            HStack(spacing: 16) {
+            FlowLayout(spacing: 12) {
                 ForEach(GlobalStats.displayCategories, id: \.self) { category in
                     HStack(spacing: 4) {
                         Circle()
@@ -271,13 +290,14 @@ private struct WorkflowStatisticsDetailView: View {
 
     private func dimensionSections(_ stats: GlobalStats) -> some View {
         ForEach(pieDimensions, id: \.self) { key in
-            if let dimData = stats.dimensions[key], !isDimensionEmpty(dimData) {
+            if let dimData = stats.dimensions[key], hasPositiveData(dimData) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(GlobalStats.dimensionTitles[key] ?? key)
                         .font(.headline)
 
                     ForEach(pieCategories, id: \.self) { category in
-                        if let valueCounts = dimData[category], !valueCounts.isEmpty {
+                        if let valueCounts = dimData[category],
+                           valueCounts.values.contains(where: { $0 > 0 }) {
                             categoryPieCard(category: category, data: valueCounts)
                         }
                     }
@@ -287,8 +307,8 @@ private struct WorkflowStatisticsDetailView: View {
     }
 
     private func categoryPieCard(category: String, data: [String: Int]) -> some View {
-        let total = data.values.reduce(0, +)
-        let sorted = data.sorted { $0.value > $1.value }
+        let sorted = data.filter { $0.value > 0 }.sorted { $0.value > $1.value }
+        let total = sorted.reduce(0) { $0 + $1.value }
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -337,13 +357,17 @@ private struct WorkflowStatisticsDetailView: View {
 
     @ViewBuilder
     private func geographicSection(_ stats: GlobalStats) -> some View {
-        if let areaData = stats.dimensions["area_code"], !isDimensionEmpty(areaData) {
+        if let areaData = stats.dimensions["area_code"], hasPositiveData(areaData) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Geographic Distribution")
+                Text("Geographic Distribution (Columbus, OH)")
                     .font(.headline)
 
+                Text("Click on a zip code area to view positive case details")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 ZipCodeMapView(zipData: transformAreaData(areaData))
-                    .frame(height: 350)
+                    .frame(height: 400)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
@@ -351,7 +375,7 @@ private struct WorkflowStatisticsDetailView: View {
 
     private func transformAreaData(_ data: [String: [String: Int]]) -> [String: [String: Int]] {
         var result: [String: [String: Int]] = [:]
-        for category in pieCategories {
+        for category in GlobalStats.positiveCategories {
             if let valueCounts = data[category] {
                 for (areaCode, count) in valueCounts {
                     result[areaCode, default: [:]][category] = count
@@ -359,15 +383,17 @@ private struct WorkflowStatisticsDetailView: View {
             }
         }
         for areaCode in result.keys {
-            for category in pieCategories where result[areaCode]?[category] == nil {
+            for category in GlobalStats.positiveCategories where result[areaCode]?[category] == nil {
                 result[areaCode]?[category] = 0
             }
         }
         return result
     }
 
-    private func isDimensionEmpty(_ data: [String: [String: Int]]) -> Bool {
-        data.values.allSatisfy { $0.isEmpty }
+    private func hasPositiveData(_ data: [String: [String: Int]]) -> Bool {
+        pieCategories.contains { category in
+            data[category]?.values.contains(where: { $0 > 0 }) == true
+        }
     }
 
     private func weeklyPositiveRows(_ stats: GlobalStats) -> [WeeklyPositiveRow] {
@@ -393,6 +419,8 @@ private struct WorkflowStatisticsDetailView: View {
         switch category {
         case "Negative":
             return .green
+        case "Positive":
+            return Color(red: 0.77, green: 0.19, blue: 0.19)
         case "Positive L":
             return .red
         case "Positive I":

@@ -2,11 +2,12 @@ import AVFoundation
 import UIKit
 
 @Observable
-class CameraService: NSObject {
+class CameraService: NSObject, @unchecked Sendable {
     var capturedImage: UIImage?
     var isSessionRunning = false
     var permissionGranted = false
     var error: String?
+    private(set) var captureDevice: AVCaptureDevice?
 
     let captureSession = AVCaptureSession()
     private let photoOutput = AVCapturePhotoOutput()
@@ -36,6 +37,7 @@ class CameraService: NSObject {
                 captureSession.commitConfiguration()
                 return
             }
+            Task { @MainActor in self.captureDevice = camera }
 
             do {
                 let input = try AVCaptureDeviceInput(device: camera)
@@ -76,11 +78,17 @@ class CameraService: NSObject {
         }
     }
 
-    func capturePhoto() async throws -> UIImage {
+    func capturePhoto(rotationAngle: CGFloat) async throws -> UIImage {
         try await withCheckedThrowingContinuation { continuation in
             self.photoContinuation = continuation
-            let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
             sessionQueue.async { [self] in
+                if let connection = photoOutput.connection(with: .video),
+                   connection.isVideoRotationAngleSupported(rotationAngle) {
+                    connection.videoRotationAngle = rotationAngle
+                }
+                let settings = AVCapturePhotoSettings(
+                    format: [AVVideoCodecKey: AVVideoCodecType.jpeg]
+                )
                 photoOutput.capturePhoto(with: settings, delegate: self)
             }
         }
