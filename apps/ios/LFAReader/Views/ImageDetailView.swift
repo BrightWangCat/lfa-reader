@@ -264,13 +264,7 @@ struct ImageDetailView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Picker("Category", selection: $viewModel.selectedCorrection) {
-                Text("Select...").tag("")
-                ForEach(correctionOptions(for: image), id: \.self) { category in
-                    Text(category).tag(category)
-                }
-            }
-            .pickerStyle(.menu)
+            correctionMenu(for: image)
 
             if let error = viewModel.correctionError {
                 Text(error)
@@ -301,6 +295,56 @@ struct ImageDetailView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func correctionMenu(for image: TestImage) -> some View {
+        Menu {
+            Button("Select...") {
+                viewModel.selectedCorrection = ""
+            }
+
+            ForEach(correctionOptions(for: image), id: \.self) { category in
+                Button {
+                    viewModel.selectedCorrection = category
+                } label: {
+                    if category == viewModel.selectedCorrection {
+                        Label(category, systemImage: "checkmark")
+                    } else {
+                        Text(category)
+                    }
+                }
+            }
+        } label: {
+            HStack(alignment: .top, spacing: 8) {
+                Text(
+                    viewModel.selectedCorrection.isEmpty
+                        ? "Select..."
+                        : viewModel.selectedCorrection
+                )
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption)
+                    .padding(.top, 3)
+            }
+            .font(.subheadline)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                Color(.secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 10)
+            )
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.tint)
+        .accessibilityLabel("Correction result")
+        .accessibilityValue(
+            viewModel.selectedCorrection.isEmpty
+                ? "Not selected"
+                : viewModel.selectedCorrection
+        )
     }
 
     @ViewBuilder

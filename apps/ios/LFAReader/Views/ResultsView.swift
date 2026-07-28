@@ -6,15 +6,20 @@ struct ResultsView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            Group {
-                if viewModel.isLoading && viewModel.images.isEmpty {
-                    ProgressView("Loading results...")
-                } else if viewModel.errorMessage != nil && viewModel.images.isEmpty {
-                    errorState
-                } else if viewModel.images.isEmpty {
-                    emptyState
-                } else {
-                    resultList
+            ZStack {
+                Color(.systemGroupedBackground)
+                    .ignoresSafeArea()
+
+                Group {
+                    if viewModel.isLoading && viewModel.images.isEmpty {
+                        ProgressView("Loading results...")
+                    } else if viewModel.errorMessage != nil && viewModel.images.isEmpty {
+                        errorState
+                    } else if viewModel.images.isEmpty {
+                        emptyState
+                    } else {
+                        resultList
+                    }
                 }
             }
             .navigationTitle("Results")
