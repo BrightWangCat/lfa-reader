@@ -1,6 +1,10 @@
 import { useNavigate } from "react-router-dom";
-import { Typography, Card, Row, Col, Tag } from "antd";
+import { Typography, Card, Row, Col, Tag, App } from "antd";
 import diseases from "@shared/data/diseases.json";
+import {
+  isDiseaseUnderDevelopment,
+  UNDER_DEVELOPMENT_NOTICE,
+} from "../utils/diseaseAvailability";
 
 const { Title, Text } = Typography;
 
@@ -11,6 +15,16 @@ const SPECIES_LABEL = { cat: "Cats", dog: "Dogs" };
 
 export default function Home() {
   const navigate = useNavigate();
+  const { modal } = App.useApp();
+
+  const handleDiseaseSelect = (disease) => {
+    if (isDiseaseUnderDevelopment(disease.id)) {
+      modal.info(UNDER_DEVELOPMENT_NOTICE);
+      return;
+    }
+
+    navigate(`/upload?disease=${encodeURIComponent(disease.id)}`);
+  };
 
   // Group the three workflows under their category for two stacked sections.
   const grouped = CATEGORY_ORDER.map((category) => ({
@@ -42,9 +56,7 @@ export default function Home() {
               <Col xs={24} sm={12} md={8} key={disease.id}>
                 <Card
                   hoverable
-                  onClick={() =>
-                    navigate(`/upload?disease=${encodeURIComponent(disease.id)}`)
-                  }
+                  onClick={() => handleDiseaseSelect(disease)}
                   styles={{ body: { padding: 20 } }}
                   style={{ height: "100%" }}
                 >

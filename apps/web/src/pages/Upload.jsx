@@ -24,6 +24,7 @@ import { uploadSingle } from "../services/api";
 import diseases from "@shared/data/diseases.json";
 import breeds from "@shared/data/breeds.json";
 import ageOptions from "@shared/data/age_options.json";
+import { isDiseaseUnderDevelopment } from "../utils/diseaseAvailability";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -43,7 +44,10 @@ export default function UploadPage() {
   // no workflow context, so we bounce the user back rather than guess.
   const diseaseId = searchParams.get("disease");
   const disease = useMemo(
-    () => diseases.find((d) => d.id === diseaseId),
+    () =>
+      isDiseaseUnderDevelopment(diseaseId)
+        ? undefined
+        : diseases.find((d) => d.id === diseaseId),
     [diseaseId]
   );
 

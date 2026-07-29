@@ -10,11 +10,16 @@ import {
   Alert,
   Empty,
   Tag,
+  App,
 } from "antd";
 import { Pie } from "@ant-design/charts";
 import api from "../services/api";
 import ZipCodeMap from "../components/ZipCodeMap";
 import { getVisibleDimensionEntries } from "./statisticsDimensions";
+import {
+  isDiseaseUnderDevelopment,
+  UNDER_DEVELOPMENT_NOTICE,
+} from "../utils/diseaseAvailability";
 import diseases from "@shared/data/diseases.json";
 
 const { Title, Text } = Typography;
@@ -51,12 +56,16 @@ const SPECIES_LABEL = { cat: "Cats", dog: "Dogs" };
 
 export default function Statistics() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { modal } = App.useApp();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const selectedDiseaseId = searchParams.get("disease");
   const selectedDisease = useMemo(
-    () => diseases.find((disease) => disease.id === selectedDiseaseId),
+    () =>
+      isDiseaseUnderDevelopment(selectedDiseaseId)
+        ? undefined
+        : diseases.find((disease) => disease.id === selectedDiseaseId),
     [selectedDiseaseId]
   );
   const groupedDiseases = useMemo(
@@ -97,8 +106,13 @@ export default function Statistics() {
     }
   };
 
-  const handleDiseaseSelect = (diseaseId) => {
-    setSearchParams({ disease: diseaseId });
+  const handleDiseaseSelect = (disease) => {
+    if (isDiseaseUnderDevelopment(disease.id)) {
+      modal.info(UNDER_DEVELOPMENT_NOTICE);
+      return;
+    }
+
+    setSearchParams({ disease: disease.id });
   };
 
   if (error) {
@@ -136,7 +150,7 @@ export default function Statistics() {
                 <Col xs={24} sm={12} md={8} key={disease.id}>
                   <Card
                     hoverable
-                    onClick={() => handleDiseaseSelect(disease.id)}
+                    onClick={() => handleDiseaseSelect(disease)}
                     styles={{ body: { padding: 20 } }}
                     style={{
                       height: "100%",
