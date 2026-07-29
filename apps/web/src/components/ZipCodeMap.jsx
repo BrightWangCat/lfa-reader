@@ -30,23 +30,28 @@ function getColor(value, maxValue) {
   return COLOR_STOPS[idx];
 }
 
-export default function ZipCodeMap({ zipData }) {
-  // zipData format: { "43215": { "Positive L": 2, "Positive I": 1, "Positive L+I": 0 }, ... }
+export default function ZipCodeMap({
+  zipData,
+  positiveCategories = [],
+  categoryColors = {},
+}) {
+  // zipData format varies by workflow. FIV/FeLV uses Positive L/I/L+I,
+  // while Tick Borne uses one aggregate Positive category.
 
   // Calculate total positives per zip and find max for color scale
   const { zipTotals, maxTotal } = useMemo(() => {
     const totals = {};
     let max = 0;
     Object.entries(zipData || {}).forEach(([zip, cats]) => {
-      const total =
-        (cats["Positive L"] || 0) +
-        (cats["Positive I"] || 0) +
-        (cats["Positive L+I"] || 0);
+      const total = positiveCategories.reduce(
+        (sum, category) => sum + (cats[category] || 0),
+        0
+      );
       totals[zip] = total;
       if (total > max) max = total;
     });
     return { zipTotals: totals, maxTotal: max };
-  }, [zipData]);
+  }, [positiveCategories, zipData]);
 
   // Style each zip code polygon based on positive count
   const style = (feature) => {
@@ -65,10 +70,16 @@ export default function ZipCodeMap({ zipData }) {
   const onEachFeature = (feature, layer) => {
     const zip = feature.properties.zip;
     const cats = zipData?.[zip] || {};
-    const posL = cats["Positive L"] || 0;
-    const posI = cats["Positive I"] || 0;
-    const posLI = cats["Positive L+I"] || 0;
-    const total = posL + posI + posLI;
+    const total = positiveCategories.reduce(
+      (sum, category) => sum + (cats[category] || 0),
+      0
+    );
+    const categoryRows = positiveCategories
+      .map(
+        (category) =>
+          `<span style="color: ${categoryColors[category] || "#c53030"}; font-weight: 600;">${category}:</span> ${cats[category] || 0}<br/>`
+      )
+      .join("");
 
     // Popup content
     const popupContent = `
@@ -77,9 +88,7 @@ export default function ZipCodeMap({ zipData }) {
           Zip Code: ${zip}
         </div>
         <div style="font-size: 13px; line-height: 1.8;">
-          <span style="color: #e53e3e; font-weight: 600;">Positive L:</span> ${posL}<br/>
-          <span style="color: #dd6b20; font-weight: 600;">Positive I:</span> ${posI}<br/>
-          <span style="color: #805ad5; font-weight: 600;">Positive L+I:</span> ${posLI}<br/>
+          ${categoryRows}
           <div style="border-top: 1px solid #e2e8f0; margin-top: 4px; padding-top: 4px; font-weight: 600;">
             Total Positive: ${total}
           </div>

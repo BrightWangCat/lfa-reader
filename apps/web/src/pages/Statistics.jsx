@@ -15,6 +15,10 @@ import {
 import { Pie } from "@ant-design/charts";
 import api from "../services/api";
 import ZipCodeMap from "../components/ZipCodeMap";
+import {
+  CATEGORY_COLORS,
+  getStatisticsCategoryConfig,
+} from "./statisticsCategories";
 import { getVisibleDimensionEntries } from "./statisticsDimensions";
 import {
   isDiseaseUnderDevelopment,
@@ -23,15 +27,6 @@ import {
 import diseases from "@shared/data/diseases.json";
 
 const { Title, Text } = Typography;
-
-const CATEGORIES = ["Negative", "Positive", "Positive L", "Positive I", "Positive L+I"];
-const CATEGORY_COLORS = {
-  "Negative": "#38a169",
-  "Positive": "#c53030",
-  "Positive L": "#e53e3e",
-  "Positive I": "#dd6b20",
-  "Positive L+I": "#805ad5",
-};
 
 // Dimensions surfaced in the per-dimension pie grid. Keep in sync with
 // PATIENT_DIMENSIONS in apps/backend/app/routers/stats.py.
@@ -78,6 +73,10 @@ export default function Statistics() {
   );
   const visibleDimensionEntries = useMemo(
     () => getVisibleDimensionEntries(DIMENSION_LABELS, selectedDisease),
+    [selectedDisease]
+  );
+  const categoryConfig = useMemo(
+    () => getStatisticsCategoryConfig(selectedDisease?.id),
     [selectedDisease]
   );
 
@@ -190,7 +189,7 @@ export default function Statistics() {
                 <Statistic title="Total Samples" value={data.total} />
               </Card>
             </Col>
-            {CATEGORIES.map((cat) => (
+            {categoryConfig.resultCategories.map((cat) => (
               <Col xs={12} sm={8} md={5} key={cat}>
                 <Card>
                   <Statistic
@@ -206,6 +205,7 @@ export default function Statistics() {
           <WeeklyTrendChart
             weeklyTrends={data.weekly_trends}
             temperatureError={data.temperature_error}
+            positiveCategories={categoryConfig.positiveCategories}
           />
 
           {visibleDimensionEntries.map(([dimKey, dimLabel]) => (
@@ -213,10 +213,14 @@ export default function Statistics() {
               key={dimKey}
               dimensionLabel={dimLabel}
               dimensionData={data.dimensions[dimKey]}
+              positiveCategories={categoryConfig.positiveCategories}
             />
           ))}
 
-          <ZipCodeMapSection zipDimensionData={data.dimensions.area_code} />
+          <ZipCodeMapSection
+            zipDimensionData={data.dimensions.area_code}
+            positiveCategories={categoryConfig.positiveCategories}
+          />
         </>
       )}
     </div>
@@ -226,21 +230,23 @@ export default function Statistics() {
 // Aggregates the area_code dimension into the shape ZipCodeMap consumes.
 // The backend renamed zip_code -> area_code, but the Columbus map GeoJSON
 // is keyed by USPS zip so the variable name here stays 'zip'.
-function ZipCodeMapSection({ zipDimensionData }) {
+function ZipCodeMapSection({ zipDimensionData, positiveCategories }) {
   const zipData = useMemo(() => {
     if (!zipDimensionData) return {};
     const result = {};
-    for (const cat of PIE_CATEGORIES) {
+    for (const cat of positiveCategories) {
       const dist = zipDimensionData[cat] || {};
       for (const [zip, count] of Object.entries(dist)) {
         if (!result[zip]) {
-          result[zip] = Object.fromEntries(PIE_CATEGORIES.map((key) => [key, 0]));
+          result[zip] = Object.fromEntries(
+            positiveCategories.map((key) => [key, 0])
+          );
         }
         result[zip][cat] = count;
       }
     }
     return result;
-  }, [zipDimensionData]);
+  }, [positiveCategories, zipDimensionData]);
 
   if (Object.keys(zipData).length === 0) {
     return null;
@@ -254,16 +260,23 @@ function ZipCodeMapSection({ zipDimensionData }) {
       <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
         Click on a zip code area to view positive case details
       </Text>
-      <ZipCodeMap zipData={zipData} />
+      <ZipCodeMap
+        zipData={zipData}
+        positiveCategories={positiveCategories}
+        categoryColors={CATEGORY_COLORS}
+      />
     </div>
   );
 }
 
-const PIE_CATEGORIES = CATEGORIES.filter((cat) => cat !== "Negative");
 const TEMPERATURE_COLOR = "#2b6cb0";
 
-function WeeklyTrendChart({ weeklyTrends = [], temperatureError }) {
-  if (!weeklyTrends.length) return null;
+function WeeklyTrendChart({
+  weeklyTrends = [],
+  temperatureError,
+  positiveCategories,
+}) {
+  if (!weeklyTrends.length || positiveCategories.length === 0) return null;
 
   const temperatureData = weeklyTrends
     .filter((week) => week.avg_temperature_f !== null && week.avg_temperature_f !== undefined)
@@ -284,6 +297,7 @@ function WeeklyTrendChart({ weeklyTrends = [], temperatureError }) {
         <WeeklyTrendSvg
           weeklyTrends={weeklyTrends}
           temperatureData={temperatureData}
+          positiveCategories={positiveCategories}
         />
         {temperatureError && (
           <Alert
@@ -298,7 +312,11 @@ function WeeklyTrendChart({ weeklyTrends = [], temperatureError }) {
   );
 }
 
-function WeeklyTrendSvg({ weeklyTrends, temperatureData }) {
+function WeeklyTrendSvg({
+  weeklyTrends,
+  temperatureData,
+  positiveCategories,
+}) {
   const width = 720;
   const height = 320;
   const margin = { top: 24, right: 58, bottom: 48, left: 46 };
@@ -308,7 +326,9 @@ function WeeklyTrendSvg({ weeklyTrends, temperatureData }) {
   const maxCount = Math.max(
     1,
     ...weeklyTrends.flatMap((week) =>
-      PIE_CATEGORIES.map((category) => week.positive_counts?.[category] || 0)
+      positiveCategories.map(
+        (category) => week.positive_counts?.[category] || 0
+      )
     )
   );
   const temperatures = temperatureData.map((point) => point.temperature);
@@ -320,7 +340,7 @@ function WeeklyTrendSvg({ weeklyTrends, temperatureData }) {
   const tempMax = maxTemperature + tempPadding;
   const xStep = plotWidth / weeklyTrends.length;
   const groupWidth = xStep * 0.66;
-  const barWidth = groupWidth / PIE_CATEGORIES.length;
+  const barWidth = groupWidth / positiveCategories.length;
   const gridLines = [0, 1, 2, 3, 4];
   const temperatureByWeek = new Map(
     temperatureData.map((point) => [point.week, point.temperature])
@@ -343,7 +363,7 @@ function WeeklyTrendSvg({ weeklyTrends, temperatureData }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center", marginBottom: 12 }}>
-        {PIE_CATEGORIES.map((category) => (
+        {positiveCategories.map((category) => (
           <LegendItem key={category} color={CATEGORY_COLORS[category]} label={category} />
         ))}
         {hasTemperature && (
@@ -392,7 +412,7 @@ function WeeklyTrendSvg({ weeklyTrends, temperatureData }) {
           const groupX = xCenter(weekIndex) - groupWidth / 2;
           return (
             <g key={week.week_start}>
-              {PIE_CATEGORIES.map((category, categoryIndex) => {
+              {positiveCategories.map((category, categoryIndex) => {
                 const count = week.positive_counts?.[category] || 0;
                 const x = groupX + categoryIndex * barWidth;
                 const y = countY(count);
@@ -471,10 +491,14 @@ function LegendItem({ color, label, line = false }) {
   );
 }
 
-function DimensionSection({ dimensionLabel, dimensionData }) {
+function DimensionSection({
+  dimensionLabel,
+  dimensionData,
+  positiveCategories,
+}) {
   if (!dimensionData) return null;
 
-  const hasData = PIE_CATEGORIES.some(
+  const hasData = positiveCategories.some(
     (cat) => dimensionData[cat] && Object.keys(dimensionData[cat]).length > 0
   );
 
@@ -498,7 +522,7 @@ function DimensionSection({ dimensionLabel, dimensionData }) {
         {dimensionLabel}
       </Title>
       <Row gutter={[16, 16]}>
-        {PIE_CATEGORIES.map((cat) => {
+        {positiveCategories.map((cat) => {
           const dist = dimensionData[cat] || {};
           const entries = Object.entries(dist).sort((a, b) => b[1] - a[1]);
           const total = entries.reduce((sum, [, count]) => sum + count, 0);
