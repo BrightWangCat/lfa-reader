@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Webcam from "react-webcam";
 import { Button, Typography } from "antd";
@@ -31,22 +31,16 @@ function canUseGetUserMedia() {
 export default function CameraCapture() {
   const navigate = useNavigate();
   const location = useLocation();
+  const isSecure = canUseGetUserMedia();
   const webcamRef = useRef(null);
   const [croppedPreview, setCroppedPreview] = useState(null);
   const [croppedBlob, setCroppedBlob] = useState(null);
   const [cameraError, setCameraError] = useState(null);
-  const [useNativeCamera, setUseNativeCamera] = useState(false);
+  const [useNativeCamera, setUseNativeCamera] = useState(() => !isSecure);
 
   const [nativeImage, setNativeImage] = useState(null);
 
-  const isSecure = canUseGetUserMedia();
   const uploadPath = buildUploadPath(location.search);
-
-  useEffect(() => {
-    if (!isSecure) {
-      setUseNativeCamera(true);
-    }
-  }, [isSecure]);
 
   const videoConstraints = useMemo(
     () => ({

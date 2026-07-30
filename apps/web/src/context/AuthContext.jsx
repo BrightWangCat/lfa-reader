@@ -1,26 +1,33 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import api from "../services/api";
-
-const AuthContext = createContext(null);
+import { AuthContext } from "./authStore";
 
 export function AuthProvider({ children }) {
+  const initialToken = localStorage.getItem("token");
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem("token"));
-  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState(initialToken);
+  const [loading, setLoading] = useState(() => Boolean(initialToken));
 
   useEffect(() => {
-    if (token) {
-      api
-        .get("/api/users/me")
-        .then((res) => setUser(res.data))
-        .catch(() => {
-          localStorage.removeItem("token");
-          setToken(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    if (!token) return undefined;
+
+    const controller = new AbortController();
+
+    api
+      .get("/api/users/me", { signal: controller.signal })
+      .then((res) => setUser(res.data))
+      .catch((error) => {
+        if (error.code === "ERR_CANCELED") return;
+        localStorage.removeItem("token");
+        setToken(null);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      });
+
+    return () => controller.abort();
   }, [token]);
 
   const login = async (username, password) => {
@@ -54,12 +61,4 @@ export function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-  return context;
 }

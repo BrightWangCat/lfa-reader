@@ -17,7 +17,7 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import api from "../services/api";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authStore";
 import { formatEasternDate } from "../utils/dateFormat";
 import { ROLE_OPTIONS, getRoleDisplay, normalizeRole } from "./userRoles";
 

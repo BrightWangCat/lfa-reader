@@ -10,7 +10,7 @@ import {
   TeamOutlined,
   MenuOutlined,
 } from "@ant-design/icons";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authStore";
 
 const { Header } = Layout;
 const { Text } = Typography;
