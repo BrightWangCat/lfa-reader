@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Card, Checkbox, Form, Input, Button, Typography, App } from "antd";
+import { Card, Form, Input, Button, Radio, Typography, App } from "antd";
 import { MailOutlined, UserOutlined, LockOutlined } from "@ant-design/icons";
 import { useAuth } from "../context/authStore";
 
@@ -19,7 +19,7 @@ export default function Register() {
         values.email,
         values.username,
         values.password,
-        Boolean(values.applyDoctor)
+        values.accountType === "vet"
       );
       navigate("/login", { state: { registered: true } });
     } catch (err) {
@@ -125,11 +125,19 @@ export default function Register() {
             />
           </Form.Item>
 
-          <Form.Item name="applyDoctor" valuePropName="checked" style={{ marginBottom: 8 }}>
-            <Checkbox>
-              I am a veterinarian. Apply for a doctor account, reviewed by an
-              administrator.
-            </Checkbox>
+          <Form.Item label="Account type" name="accountType" initialValue="owner">
+            <Radio.Group
+              optionType="button"
+              buttonStyle="solid"
+              style={{ display: "flex", width: "100%" }}
+            >
+              <Radio.Button value="owner" style={{ flex: 1, textAlign: "center" }}>
+                Pet Owner
+              </Radio.Button>
+              <Radio.Button value="vet" style={{ flex: 1, textAlign: "center" }}>
+                Veterinarian
+              </Radio.Button>
+            </Radio.Group>
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>

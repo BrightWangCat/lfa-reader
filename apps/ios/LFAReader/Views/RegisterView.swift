@@ -106,17 +106,16 @@ struct RegisterView: View {
                                 .foregroundStyle(.red)
                         }
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            Toggle(isOn: $applyDoctor) {
-                                Text("I am a veterinarian. Apply for a doctor account.")
-                                    .font(.subheadline)
-                            }
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Account Type")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
 
-                            if applyDoctor {
-                                Text("An administrator reviews doctor applications. Until approval, the account works as a regular account.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                            Picker("Account Type", selection: $applyDoctor) {
+                                Text("Pet Owner").tag(false)
+                                Text("Veterinarian").tag(true)
                             }
+                            .pickerStyle(.segmented)
                         }
                         .padding()
                         .background(.fill.tertiary)
