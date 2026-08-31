@@ -52,10 +52,10 @@ export function ShellLayout({ children }) {
 }
 
 // Applies the role-matched Ant Design theme plus the CSS-variable shell class.
-// Signed-out pages (login, register) default to the clinic look.
+// Signed-out pages (login, register) share the warm owner look.
 export function ThemedRoot({ children }) {
   const { user } = useAuth();
-  const ownerExperience = user && !isClinicalRole(user.role);
+  const ownerExperience = !user || !isClinicalRole(user.role);
   return (
     <ConfigProvider theme={ownerExperience ? ownerTheme : clinicTheme}>
       <AntApp>

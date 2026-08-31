@@ -1,27 +1,24 @@
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Layout as AntLayout, Dropdown, Grid, Typography } from "antd";
+import { Layout as AntLayout, Menu, Grid, Button, Drawer, Typography } from "antd";
 import {
   HomeOutlined,
   HistoryOutlined,
   EnvironmentOutlined,
-  UserOutlined,
   LogoutOutlined,
+  MenuOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../context/authStore";
 
-const { Content } = AntLayout;
+const { Content, Sider } = AntLayout;
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
 
-const NAV_ITEMS = [
-  { key: "/home", label: "Home", icon: <HomeOutlined /> },
-  { key: "/history", label: "Results", icon: <HistoryOutlined /> },
-  { key: "/map", label: "Map", icon: <EnvironmentOutlined /> },
-];
+// Same sidebar structure as the clinic shell, in the warm owner palette:
+// a light sand panel instead of the clinic's dark slate.
+const SIDER_BG = "#F5EDE3";
 
-// Record-level pages shared with the clinic shell highlight the nav entry
-// they were most likely reached from.
-const pathToNavKey = (pathname) => {
+const pathToKey = (pathname) => {
   if (pathname.startsWith("/history") || pathname.startsWith("/results")) {
     return "/history";
   }
@@ -34,139 +31,204 @@ export default function OwnerLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const isMobile = !screens.lg;
 
   if (!user) return null;
 
-  const activeKey = pathToNavKey(location.pathname);
+  const selectedKey = pathToKey(location.pathname);
 
-  const userMenuItems = [
-    {
-      key: "logout",
-      icon: <LogoutOutlined />,
-      label: "Log out",
-      onClick: () => {
-        logout();
-        navigate("/login");
-      },
-    },
+  const menuItems = [
+    { key: "/home", icon: <HomeOutlined />, label: "Home" },
+    { key: "/history", icon: <HistoryOutlined />, label: "My Results" },
+    { key: "/map", icon: <EnvironmentOutlined />, label: "Community Map" },
   ];
+
+  const handleMenuClick = ({ key }) => {
+    setDrawerOpen(false);
+    navigate(key);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  const brandBlock = (
+    <div style={{ padding: "18px 16px 14px" }}>
+      <Link
+        to="/home"
+        style={{
+          fontFamily: "var(--heading-font)",
+          fontWeight: 700,
+          fontSize: 19,
+          color: "var(--ink-strong)",
+          textDecoration: "none",
+        }}
+      >
+        LFA Reader
+      </Link>
+    </div>
+  );
+
+  const userBlock = (
+    <div
+      style={{
+        margin: 12,
+        padding: "11px 12px",
+        borderRadius: 12,
+        background: "#FFFFFF",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+      }}
+    >
+      <div
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 999,
+          background: "#E9DCCB",
+          color: "#6E5A41",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 12,
+          fontWeight: 700,
+          flexShrink: 0,
+        }}
+      >
+        {user.username.slice(0, 2).toUpperCase()}
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: "var(--ink-strong)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {user.username}
+        </div>
+        <div style={{ fontSize: 11.5, color: "var(--ink-secondary)" }}>
+          Pet Owner
+        </div>
+      </div>
+      <Button
+        type="text"
+        size="small"
+        icon={<LogoutOutlined style={{ color: "var(--ink-secondary)" }} />}
+        onClick={handleLogout}
+        title="Log out"
+      />
+    </div>
+  );
+
+  const navMenu = (
+    <Menu
+      mode="inline"
+      selectedKeys={[selectedKey]}
+      items={menuItems}
+      onClick={handleMenuClick}
+      style={{ background: "transparent", borderRight: "none", flex: 1 }}
+    />
+  );
 
   return (
     <AntLayout style={{ minHeight: "100vh", background: "var(--shell-bg)" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: isMobile ? "14px 16px" : "16px 24px",
-          maxWidth: 860,
-          width: "100%",
-          margin: "0 auto",
-        }}
-      >
-        <Link
-          to="/home"
+      {!isMobile && (
+        <Sider
+          width={224}
           style={{
-            fontFamily: "var(--heading-font)",
-            fontWeight: 700,
-            fontSize: 20,
-            color: "var(--ink-strong)",
-            textDecoration: "none",
+            background: SIDER_BG,
+            borderRight: "1px solid var(--surface-border)",
+            position: "sticky",
+            top: 0,
+            height: "100vh",
           }}
         >
-          LFA Reader
-        </Link>
-        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-          {!isMobile &&
-            NAV_ITEMS.map((item) => (
-              <Link
-                key={item.key}
-                to={item.key}
-                style={{
-                  color:
-                    activeKey === item.key
-                      ? "var(--ink-strong)"
-                      : "var(--ink-secondary)",
-                  fontWeight: activeKey === item.key ? 700 : 500,
-                  fontSize: 14,
-                }}
-              >
-                {item.label}
-              </Link>
-            ))}
-          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-            <div
+          <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            {brandBlock}
+            {navMenu}
+            {userBlock}
+          </div>
+        </Sider>
+      )}
+
+      <AntLayout style={{ background: "var(--shell-bg)" }}>
+        {isMobile && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "12px 16px",
+              background: SIDER_BG,
+              borderBottom: "1px solid var(--surface-border)",
+            }}
+          >
+            <Button
+              type="text"
+              icon={
+                <MenuOutlined
+                  style={{ color: "var(--ink-strong)", fontSize: 18 }}
+                />
+              }
+              onClick={() => setDrawerOpen(true)}
+            />
+            <Link
+              to="/home"
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                cursor: "pointer",
-                color: "var(--ink-secondary)",
+                fontFamily: "var(--heading-font)",
+                fontWeight: 700,
+                fontSize: 17,
+                color: "var(--ink-strong)",
               }}
             >
-              <UserOutlined />
-              {!isMobile && (
-                <Text style={{ color: "var(--ink-secondary)", fontSize: 13.5 }}>
-                  {user.username}
-                </Text>
-              )}
-            </div>
-          </Dropdown>
-        </div>
-      </div>
+              LFA Reader
+            </Link>
+          </div>
+        )}
 
-      <Content
-        style={{
-          padding: isMobile ? "0 16px 90px" : "0 24px 48px",
-          maxWidth: 860,
-          width: "100%",
-          margin: "0 auto",
-        }}
-      >
-        {children}
-      </Content>
-
-      {isMobile && (
-        <div
+        <Content
           style={{
-            position: "fixed",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            background: "#ffffff",
-            borderTop: "1px solid var(--surface-border)",
-            display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            padding: "8px 0 12px",
-            zIndex: 100,
+            padding: isMobile ? 16 : "24px 28px",
+            width: "100%",
+            maxWidth: 920,
+            margin: "0 auto",
           }}
         >
-          {NAV_ITEMS.map((item) => {
-            const active = activeKey === item.key;
-            return (
-              <Link
-                key={item.key}
-                to={item.key}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 3,
-                  fontSize: 11,
-                  fontWeight: active ? 700 : 500,
-                  color: active
-                    ? "var(--brand-primary)"
-                    : "var(--ink-secondary)",
-                }}
-              >
-                <span style={{ fontSize: 20 }}>{item.icon}</span>
-                {item.label}
-              </Link>
-            );
-          })}
+          {children}
+        </Content>
+      </AntLayout>
+
+      <Drawer
+        placement="left"
+        onClose={() => setDrawerOpen(false)}
+        open={drawerOpen}
+        width={260}
+        styles={{
+          body: {
+            padding: 0,
+            background: SIDER_BG,
+            display: "flex",
+            flexDirection: "column",
+          },
+          header: { display: "none" },
+        }}
+      >
+        {brandBlock}
+        {navMenu}
+        {userBlock}
+        <div style={{ padding: "0 16px 16px" }}>
+          <Text style={{ color: "var(--ink-secondary)", fontSize: 12 }}>
+            Signed in as {user.username}
+          </Text>
         </div>
-      )}
+      </Drawer>
     </AntLayout>
   );
 }

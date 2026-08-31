@@ -32,7 +32,9 @@ struct ContentView: View {
                     OwnerRootView()
                 }
             } else {
+                // Signed-out screens share the warm owner look.
                 LoginView()
+                    .tint(ShellTheme.ownerAccent)
             }
         }
     }

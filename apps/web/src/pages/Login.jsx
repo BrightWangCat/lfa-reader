@@ -33,7 +33,7 @@ export default function Login() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#f0f4f8",
+        background: "var(--shell-bg)",
       }}
     >
       <Card
@@ -42,7 +42,7 @@ export default function Login() {
       >
         <Title
           level={3}
-          style={{ textAlign: "center", color: "#1a365d", marginBottom: 4 }}
+          style={{ textAlign: "center", color: "var(--ink-strong)", marginBottom: 4 }}
         >
           LFA Reader
         </Title>
