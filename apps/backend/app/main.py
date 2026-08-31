@@ -7,7 +7,11 @@ from sqlalchemy import text, inspect as sa_inspect
 from app.database import engine, Base
 from app.config import UPLOAD_DIR, CORS_ORIGINS
 from app.routers import users, upload, reading, stats
-from app.role_utils import USER_ROLE, migrate_legacy_user_roles
+from app.role_utils import (
+    USER_ROLE,
+    migrate_legacy_user_roles,
+    migrate_users_doctor_application,
+)
 
 Base.metadata.create_all(bind=engine)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -276,6 +280,10 @@ def _migrate_image_disease_category(eng):
 
 
 _migrate_image_disease_category(engine)
+
+
+# Adds the doctor-application column used by the user/doctor edition split.
+migrate_users_doctor_application(engine)
 
 
 app = FastAPI(title="LFA Reader", version="0.2.0")

@@ -12,8 +12,12 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    # Role-based access: "user", "admin"
+    # Role-based access: "user", "doctor", "admin"
     role = Column(String, default=USER_ROLE, nullable=False)
+    # Doctor application state: NULL = never applied, "pending" = awaiting
+    # admin review, "rejected" = reviewed and declined. Approval sets role to
+    # "doctor" and clears this back to NULL.
+    doctor_application_status = Column(String, nullable=True, default=None)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

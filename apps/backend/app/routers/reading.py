@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from app.database import get_db, SessionLocal
 from app.models import User, Image
 from app.auth import get_current_user
+from app.role_utils import CLINICAL_ROLES
 from app.services import cv_inference
 from app.services.result_categories import (
     FIV_FELV_CATEGORIES,
@@ -21,10 +22,11 @@ class ManualCorrectionRequest(BaseModel):
 
 
 def _load_image(image_id: int, current_user: User, db: Session) -> Image:
+    """Load an image the caller may act on: the owner, or any clinical role."""
     image = db.query(Image).filter(Image.id == image_id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
-    if current_user.role != "admin" and image.user_id != current_user.id:
+    if current_user.role not in CLINICAL_ROLES and image.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
     return image
 

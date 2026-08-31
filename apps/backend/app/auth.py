@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from app.database import get_db
 from app.models import User
+from app.role_utils import CLINICAL_ROLES
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
@@ -70,5 +71,19 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
+        )
+    return current_user
+
+
+def require_clinical(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency that ensures the current user has a clinical role.
+
+    Clinical means doctor or admin: full visibility over all readings and
+    the complete statistics views. Management endpoints keep require_admin.
+    """
+    if current_user.role not in CLINICAL_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Clinical access required",
         )
     return current_user

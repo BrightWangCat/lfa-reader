@@ -12,7 +12,7 @@ from app.auth import (
     hash_password, verify_password, create_access_token,
     get_current_user, require_admin,
 )
-from app.role_utils import VALID_USER_ROLES
+from app.role_utils import VALID_USER_ROLES, DOCTOR_ROLE
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -28,6 +28,9 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         email=user_in.email,
         username=user_in.username,
         hashed_password=hash_password(user_in.password),
+        # Applying for the doctor role only records the request; the account
+        # stays a regular user until an admin approves it.
+        doctor_application_status="pending" if user_in.apply_doctor else None,
     )
     db.add(user)
     db.commit()
@@ -73,7 +76,8 @@ def set_user_role(
 ):
     """Set the role for a user. Admin only.
 
-    Valid roles: user, admin. Cannot change your own role.
+    Valid roles: user, doctor, admin. Cannot change your own role. Also the
+    fallback path for promoting an account whose application was rejected.
     """
     valid_roles = VALID_USER_ROLES
     if body.role not in valid_roles:
@@ -93,6 +97,52 @@ def set_user_role(
         )
 
     target.role = body.role
+    db.commit()
+    db.refresh(target)
+    return target
+
+
+class DoctorApplicationDecision(BaseModel):
+    decision: str  # "approve" or "reject"
+
+
+@router.put("/{user_id}/doctor-application", response_model=UserResponse)
+def decide_doctor_application(
+    user_id: int,
+    body: DoctorApplicationDecision,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Decide a pending doctor application. Admin only.
+
+    Approval reuses the set_user_role write path and clears the application
+    status back to NULL; rejection keeps the regular-user role and records
+    the outcome so clients can show it. No online re-application exists, so
+    a rejected value stays until an admin promotes the account directly.
+    """
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.doctor_application_status != "pending":
+        raise HTTPException(
+            status_code=400, detail="No pending doctor application",
+        )
+
+    if body.decision == "approve":
+        set_user_role(
+            user_id,
+            SetRoleRequest(role=DOCTOR_ROLE),
+            current_user=current_user,
+            db=db,
+        )
+        target.doctor_application_status = None
+    elif body.decision == "reject":
+        target.doctor_application_status = "rejected"
+    else:
+        raise HTTPException(
+            status_code=400, detail="decision must be 'approve' or 'reject'",
+        )
+
     db.commit()
     db.refresh(target)
     return target

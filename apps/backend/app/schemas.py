@@ -34,6 +34,9 @@ class UserCreate(BaseModel):
     email: EmailStr
     username: str
     password: str
+    # True when the registrant applies for the doctor role. The account is
+    # still created as a regular user and gains nothing until admin approval.
+    apply_doctor: bool = False
 
 
 class UserResponse(BaseModel):
@@ -41,6 +44,7 @@ class UserResponse(BaseModel):
     email: str
     username: str
     role: str = USER_ROLE
+    doctor_application_status: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

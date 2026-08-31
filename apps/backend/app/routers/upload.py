@@ -17,6 +17,7 @@ from app.schemas import (
 )
 from app.auth import get_current_user
 from app.config import UPLOAD_DIR
+from app.role_utils import CLINICAL_ROLES
 from app.services.cv_inference import cancel_classification
 from app.services.classification_dispatcher import preprocess_image_for_workflow
 from app.services.image_preprocessor import PreprocessingError
@@ -162,14 +163,15 @@ def list_images(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """List images. Admin sees everyone's; regular users see only their own."""
+    """List images. Clinical roles (doctor, admin) see everyone's; regular
+    users see only their own."""
     query = db.query(Image).options(joinedload(Image.patient_info))
-    if current_user.role != "admin":
+    if current_user.role not in CLINICAL_ROLES:
         query = query.filter(Image.user_id == current_user.id)
     images = query.order_by(Image.created_at.desc()).all()
 
-    # Pre-fetch usernames to fill in admin's cross-user view.
-    if current_user.role == "admin":
+    # Pre-fetch usernames to fill in the clinical cross-user view.
+    if current_user.role in CLINICAL_ROLES:
         user_ids = {img.user_id for img in images}
         username_map = {
             u.id: u.username
@@ -193,13 +195,14 @@ def get_image_detail(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get a single image with its patient info. Admin can access any image."""
+    """Get a single image with its patient info. Clinical roles can access
+    any image."""
     query = (
         db.query(Image)
         .options(joinedload(Image.patient_info))
         .filter(Image.id == image_id)
     )
-    if current_user.role != "admin":
+    if current_user.role not in CLINICAL_ROLES:
         query = query.filter(Image.user_id == current_user.id)
     image = query.first()
     if not image:
@@ -213,7 +216,8 @@ def delete_image(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete an image and its files. Admin can delete any image."""
+    """Delete an image and its files. Admin can delete any image; doctors,
+    like regular users, can only delete their own uploads."""
     query = db.query(Image).filter(Image.id == image_id)
     if current_user.role != "admin":
         query = query.filter(Image.user_id == current_user.id)
@@ -257,7 +261,7 @@ def get_image_file(
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
 
-    if current_user.role != "admin" and image.user_id != current_user.id:
+    if current_user.role not in CLINICAL_ROLES and image.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     if (
