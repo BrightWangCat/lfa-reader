@@ -209,8 +209,7 @@ lfa-reader/
 ├── shared/data/     # Shared disease, breed, age, and Columbus ZIP data
 ├── scripts/         # AWS database backup and restore helpers
 ├── CONTRIBUTING.md
-├── README.md
-└── ROADMAP.md
+└── README.md
 ```
 
 ## API and Operations
