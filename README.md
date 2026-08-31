@@ -29,9 +29,27 @@ catalog for ongoing product work. The web app blocks it with an
 **Under Development** notice, and the backend does not yet have a dedicated
 classifier for it. Do not use that workflow for production classification.
 
+## Roles and Experiences
+
+The product ships two experiences behind one login.
+
+| Role | Experience |
+|------|------------|
+| `user` (pet owner) | Owner shell: a scan-centered home, plain-language result summaries, own submissions only, and the community ZIP map |
+| `doctor` | Clinic shell: every submission with full clinical detail, correction authority over any record, and the full statistics views |
+| `admin` | Clinic shell plus user management and doctor-application review |
+
+Doctor accounts are created by applying during registration; an administrator
+approves or rejects the application. Authorization is enforced by the backend:
+regular users read and correct only their own submissions, the full statistics
+endpoint requires a clinical role, and a dedicated map endpoint serves only
+aggregated positive counts per ZIP code to every signed-in role.
+
 ## Highlights
 
-The matrix below describes the two active workflows.
+The matrix below describes the two active workflows. Where a feature is
+role-gated, the row says so; everything else is available to every signed-in
+role.
 
 | Feature | Web | iOS |
 |---------|:---:|:---:|
@@ -41,13 +59,15 @@ The matrix below describes the two active workflows.
 | Workflow-specific patient metadata | Yes | Yes |
 | Tick Borne preventive-treatment metadata | Yes | Yes |
 | Automatic image preprocessing and OpenCV classification | Yes | Yes |
-| Manual correction override | Yes | Yes |
+| Manual correction override (own records; clinical roles correct any) | Yes | Yes |
 | Backend-generated advisories | Yes | Yes |
+| Plain-language result summaries for pet owners | Yes | Yes |
 | User-facing timestamps normalized to US Eastern Time (`ET`) | Yes | Yes |
-| Per-disease statistics dashboard | Yes | Yes |
-| Weekly positive-result trends with Columbus temperature context | Yes | Yes |
-| Patient metadata distribution charts | Yes | Yes |
-| Columbus ZIP Code positive-case map | Yes | Yes |
+| Per-disease statistics dashboard (clinical roles) | Yes | Yes |
+| Weekly positive-result trends with Columbus temperature context (clinical roles) | Yes | Yes |
+| Patient metadata distribution charts (clinical roles) | Yes | Yes |
+| Columbus ZIP Code positive-case map (all roles) | Yes | Yes |
+| Doctor application at registration with admin review | Yes | Yes |
 | Admin user management | Yes | Yes |
 
 The web statistics view uses workflow-specific result categories: FIV/FeLV
