@@ -36,6 +36,10 @@ import {
 } from "../services/api";
 import { resolveWarning } from "../locales/warnings";
 import { formatEasternDateTime } from "../utils/dateFormat";
+import { getPlainResult } from "../utils/resultDisplay";
+import { useAuth } from "../context/authStore";
+import { isClinicalRole } from "./userRoles";
+import { startTestPathFor, historyPathFor } from "../utils/shellPaths";
 
 const { useBreakpoint } = Grid;
 const { Title, Text } = Typography;
@@ -96,6 +100,55 @@ const correctionOptionsForImage = (image) => {
 const detailForImage = (image) =>
   image?.manual_correction_detail || image?.cv_result_detail || null;
 
+const PLAIN_TONE_STYLES = {
+  good: { color: "var(--result-good)", background: "var(--result-good-bg)" },
+  attention: { color: "var(--result-bad)", background: "var(--result-bad-bg)" },
+  invalid: {
+    color: "var(--result-neutral)",
+    background: "var(--result-neutral-bg)",
+  },
+  pending: {
+    color: "var(--result-pending)",
+    background: "var(--result-pending-bg)",
+  },
+  neutral: {
+    color: "var(--result-neutral)",
+    background: "var(--result-neutral-bg)",
+  },
+};
+
+// Owner-facing summary: plain language instead of the clinical tags and the
+// per-analyte panel. The raw category still shows as a footnote because the
+// correction picker uses the same values.
+function PlainResultPanel({ image }) {
+  const final = image.manual_correction || image.cv_result;
+  const plain = getPlainResult(image.disease_category, final);
+  const style = PLAIN_TONE_STYLES[plain.tone] || PLAIN_TONE_STYLES.neutral;
+  return (
+    <div
+      style={{
+        background: style.background,
+        borderRadius: 12,
+        padding: "14px 16px",
+        marginBottom: 16,
+      }}
+    >
+      <div style={{ color: style.color, fontWeight: 700, fontSize: 16 }}>
+        {plain.title}
+      </div>
+      <div style={{ color: "var(--ink-strong)", fontSize: 13.5, lineHeight: 1.6, marginTop: 4 }}>
+        {plain.summary}
+      </div>
+      {final && (
+        <div style={{ color: "var(--ink-secondary)", fontSize: 12, marginTop: 8 }}>
+          Result category: {final}
+          {image.manual_correction ? " (reviewed)" : ""}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const analyteRowsForImage = (image) => {
   const detail = detailForImage(image);
   if (!detail?.analytes) return [];
@@ -108,6 +161,8 @@ export default function Results() {
   const [searchParams] = useSearchParams();
   const imageId = searchParams.get("image");
   const { message } = App.useApp();
+  const { user } = useAuth();
+  const ownerView = !isClinicalRole(user?.role);
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
@@ -281,8 +336,8 @@ export default function Results() {
         }}
       >
         <div>
-          <Title level={3} style={{ color: "#1a365d", margin: 0 }}>
-            Classification Result
+          <Title level={3} style={{ color: "var(--ink-strong)", margin: 0 }}>
+            {ownerView ? "Test Result" : "Classification Result"}
           </Title>
           <Text type="secondary">
             Image #{image.id} {" \u00b7 "}
@@ -299,9 +354,9 @@ export default function Results() {
             marginTop: 16,
           }}
         >
-          <Link to="/history">
+          <Link to={historyPathFor(user)}>
             <Button icon={<ArrowLeftOutlined />} size={isMobile ? "small" : "middle"}>
-              History
+              {ownerView ? "My Results" : "Submissions"}
             </Button>
           </Link>
           <Space wrap size={isMobile ? "small" : "middle"}>
@@ -324,7 +379,7 @@ export default function Results() {
                 Cancel Job
               </Button>
             )}
-            <Link to="/">
+            <Link to={startTestPathFor(user)}>
               <Button
                 icon={<PlusOutlined />}
                 type="primary"
@@ -423,33 +478,37 @@ export default function Results() {
           {image.original_filename}
         </Text>
 
-        <Descriptions
-          column={1}
-          size="small"
-          style={{ marginBottom: 16 }}
-          items={[
-            {
-              key: "cv",
-              label: "CV Reading",
-              children: image.cv_result ? (
-                <Tag color="green">{image.cv_result}</Tag>
-              ) : (
-                <Tag color="gold">Pending</Tag>
-              ),
-            },
-            ...(image.manual_correction
-              ? [
-                  {
-                    key: "manual",
-                    label: "Corrected",
-                    children: <Tag color="green">{image.manual_correction}</Tag>,
-                  },
-                ]
-              : []),
-          ]}
-        />
+        {ownerView ? (
+          <PlainResultPanel image={image} />
+        ) : (
+          <Descriptions
+            column={1}
+            size="small"
+            style={{ marginBottom: 16 }}
+            items={[
+              {
+                key: "cv",
+                label: "CV Reading",
+                children: image.cv_result ? (
+                  <Tag color="green">{image.cv_result}</Tag>
+                ) : (
+                  <Tag color="gold">Pending</Tag>
+                ),
+              },
+              ...(image.manual_correction
+                ? [
+                    {
+                      key: "manual",
+                      label: "Corrected",
+                      children: <Tag color="green">{image.manual_correction}</Tag>,
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        )}
 
-        {analyteRowsForImage(image).length > 0 && (
+        {!ownerView && analyteRowsForImage(image).length > 0 && (
           <div
             style={{
               border: "1px solid #e2e8f0",

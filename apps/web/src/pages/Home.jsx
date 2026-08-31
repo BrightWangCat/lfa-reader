@@ -5,6 +5,8 @@ import {
   isDiseaseUnderDevelopment,
   UNDER_DEVELOPMENT_NOTICE,
 } from "../utils/diseaseAvailability";
+import { useAuth } from "../context/authStore";
+import { isClinicalRole } from "./userRoles";
 
 const { Title, Text } = Typography;
 
@@ -16,6 +18,8 @@ const SPECIES_LABEL = { cat: "Cats", dog: "Dogs" };
 export default function Home() {
   const navigate = useNavigate();
   const { modal } = App.useApp();
+  const { user } = useAuth();
+  const ownerView = !isClinicalRole(user?.role);
 
   const handleDiseaseSelect = (disease) => {
     if (isDiseaseUnderDevelopment(disease.id)) {
@@ -34,21 +38,21 @@ export default function Home() {
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto" }}>
-      <Title level={3} style={{ color: "#1a365d", marginBottom: 8 }}>
-        Start a New Test
+      <Title level={3} style={{ color: "var(--ink-strong)", marginBottom: 8 }}>
+        {ownerView ? "Which test are you scanning?" : "Start a New Test"}
       </Title>
       <Text
         type="secondary"
         style={{ display: "block", marginBottom: 32, lineHeight: 1.6 }}
       >
-        Choose the disease workflow that matches the lateral flow assay you are
-        about to read. Each workflow collects the clinical context specific to
-        that disease.
+        {ownerView
+          ? "Pick the test kit you are using. The name is printed on the cassette or its box."
+          : "Choose the disease workflow that matches the lateral flow assay you are about to read. Each workflow collects the clinical context specific to that disease."}
       </Text>
 
       {grouped.map(({ category, items }) => (
         <div key={category} style={{ marginBottom: 32 }}>
-          <Title level={4} style={{ color: "#2d3748", marginBottom: 16 }}>
+          <Title level={4} style={{ color: "var(--ink-strong)", marginBottom: 16 }}>
             {category}
           </Title>
           <Row gutter={[16, 16]}>
@@ -60,7 +64,7 @@ export default function Home() {
                   styles={{ body: { padding: 20 } }}
                   style={{ height: "100%" }}
                 >
-                  <Title level={5} style={{ color: "#1a365d", margin: 0 }}>
+                  <Title level={5} style={{ color: "var(--ink-strong)", margin: 0 }}>
                     {disease.label}
                   </Title>
                   <div style={{ marginTop: 12 }}>

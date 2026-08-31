@@ -6,6 +6,7 @@ import {
   Steps,
   Progress,
   Alert,
+  Collapse,
   Radio,
   Select,
   Form,
@@ -25,6 +26,9 @@ import diseases from "@shared/data/diseases.json";
 import breeds from "@shared/data/breeds.json";
 import ageOptions from "@shared/data/age_options.json";
 import { isDiseaseUnderDevelopment } from "../utils/diseaseAvailability";
+import { useAuth } from "../context/authStore";
+import { isClinicalRole } from "./userRoles";
+import { startTestPathFor } from "../utils/shellPaths";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -34,11 +38,85 @@ const MAX_SIZE = 20 * 1024 * 1024; // 20MB
 
 const SPECIES_LABEL = { cat: "Cats", dog: "Dogs" };
 
+// Age, sex and breed are secondary context. The clinic form shows them flat;
+// the owner form folds them away so the simple path stays short (D6: same
+// field set, all optional, secondary fields collapsed).
+function PatientDetailFields({
+  ownerView,
+  age,
+  setAge,
+  sex,
+  setSex,
+  breed,
+  setBreed,
+  ageList,
+  breedList,
+}) {
+  const fields = (
+    <>
+      <Form.Item label={ownerView ? "Age (optional)" : "Age"}>
+        <Select
+          value={age || undefined}
+          onChange={setAge}
+          placeholder="Select age"
+          options={ageList.map((a) => ({ value: a, label: a }))}
+          allowClear
+        />
+      </Form.Item>
+      <Form.Item label={ownerView ? "Sex (optional)" : "Sex"}>
+        <Select
+          value={sex || undefined}
+          onChange={setSex}
+          placeholder="Select sex"
+          options={[
+            { value: "M", label: "M" },
+            { value: "F", label: "F" },
+            { value: "CM", label: "CM" },
+            { value: "CF", label: "CF" },
+          ]}
+          allowClear
+        />
+      </Form.Item>
+      <Form.Item label={ownerView ? "Breed (optional)" : "Breed"}>
+        <Select
+          value={breed || undefined}
+          onChange={setBreed}
+          placeholder="Select breed"
+          options={breedList.map((b) => ({ value: b, label: b }))}
+          showSearch
+          allowClear
+        />
+      </Form.Item>
+    </>
+  );
+
+  if (!ownerView) {
+    return fields;
+  }
+
+  return (
+    <Collapse
+      ghost
+      items={[
+        {
+          key: "details",
+          label: "More details (optional)",
+          children: fields,
+        },
+      ]}
+      style={{ marginBottom: 8 }}
+    />
+  );
+}
+
 export default function UploadPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { message } = App.useApp();
+  const { user } = useAuth();
+  const ownerView = !isClinicalRole(user?.role);
+  const startPath = startTestPathFor(user);
 
   // The disease id comes from the Home page; without it the upload page has
   // no workflow context, so we bounce the user back rather than guess.
@@ -93,7 +171,7 @@ export default function UploadPage() {
   }, [location.state]);
 
   if (!disease) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={startPath} replace />;
   }
 
   const speciesLabel = SPECIES_LABEL[disease.species];
@@ -189,7 +267,7 @@ export default function UploadPage() {
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto" }}>
-      <Title level={3} style={{ color: "#1a365d", marginBottom: 8 }}>
+      <Title level={3} style={{ color: "var(--ink-strong)", marginBottom: 8 }}>
         {disease.label}
       </Title>
       <div style={{ marginBottom: 16 }}>
@@ -202,8 +280,9 @@ export default function UploadPage() {
         type="secondary"
         style={{ display: "block", marginBottom: 24, lineHeight: 1.5 }}
       >
-        Upload a single lateral flow assay cassette image for the {disease.label}
-        {" "}workflow. Supported formats: JPG, PNG. Maximum 20MB.
+        {ownerView
+          ? "Take or choose one clear photo of the whole test cassette. JPG or PNG, up to 20MB."
+          : `Upload a single lateral flow assay cassette image for the ${disease.label} workflow. Supported formats: JPG, PNG. Maximum 20MB.`}
       </Text>
 
       <Steps
@@ -294,7 +373,7 @@ export default function UploadPage() {
           )}
 
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
-            <Button size="large" onClick={() => navigate("/")}>Back to Home</Button>
+            <Button size="large" onClick={() => navigate(startPath)}>Back</Button>
             <Button
               type="primary"
               size="large"
@@ -310,9 +389,10 @@ export default function UploadPage() {
       {/* Step 2: Patient Information */}
       {step === 1 && (
         <>
-          <Title level={5} style={{ color: "#1a365d", marginBottom: 16 }}>
-            Would you like to share some confidential information regarding the
-            patient?
+          <Title level={5} style={{ color: "var(--ink-strong)", marginBottom: 16 }}>
+            {ownerView
+              ? "Would you like to add a few optional details about your pet? This helps track disease activity in your area."
+              : "Would you like to share some confidential information regarding the patient?"}
           </Title>
 
           <Radio.Group
@@ -329,41 +409,14 @@ export default function UploadPage() {
 
           {shareInfo && (
             <Form layout="vertical" style={{ marginBottom: 8 }}>
-              <Form.Item label="Age">
-                <Select
-                  value={age || undefined}
-                  onChange={setAge}
-                  placeholder="Select age"
-                  options={ageList.map((a) => ({ value: a, label: a }))}
-                  allowClear
-                />
-              </Form.Item>
-              <Form.Item label="Sex">
-                <Select
-                  value={sex || undefined}
-                  onChange={setSex}
-                  placeholder="Select sex"
-                  options={[
-                    { value: "M", label: "M" },
-                    { value: "F", label: "F" },
-                    { value: "CM", label: "CM" },
-                    { value: "CF", label: "CF" },
-                  ]}
-                  allowClear
-                />
-              </Form.Item>
-              <Form.Item label="Breed">
-                <Select
-                  value={breed || undefined}
-                  onChange={setBreed}
-                  placeholder="Select breed"
-                  options={breedList.map((b) => ({ value: b, label: b }))}
-                  showSearch
-                  allowClear
-                />
-              </Form.Item>
               {disease.needs_preventive_treatment && (
-                <Form.Item label="Was there a preventive treatment in the last 6 months?">
+                <Form.Item
+                  label={
+                    ownerView
+                      ? "Has your dog had a tick or heartworm preventive in the last 6 months?"
+                      : "Was there a preventive treatment in the last 6 months?"
+                  }
+                >
                   <Radio.Group
                     value={preventiveTreatment}
                     onChange={(e) => setPreventiveTreatment(e.target.value)}
@@ -375,13 +428,26 @@ export default function UploadPage() {
                   </Radio.Group>
                 </Form.Item>
               )}
-              <Form.Item label="Area Code">
+              <Form.Item
+                label={ownerView ? "ZIP code, for the community map" : "Area Code"}
+              >
                 <Input
                   value={areaCode}
                   onChange={(e) => setAreaCode(e.target.value)}
-                  placeholder="Area code"
+                  placeholder={ownerView ? "e.g. 43210" : "Area code"}
                 />
               </Form.Item>
+              <PatientDetailFields
+                ownerView={ownerView}
+                age={age}
+                setAge={setAge}
+                sex={sex}
+                setSex={setSex}
+                breed={breed}
+                setBreed={setBreed}
+                ageList={ageList}
+                breedList={breedList}
+              />
             </Form>
           )}
 
@@ -404,7 +470,7 @@ export default function UploadPage() {
       {/* Step 3: Submit */}
       {step === 2 && (
         <>
-          <Title level={5} style={{ color: "#1a365d", marginBottom: 16 }}>
+          <Title level={5} style={{ color: "var(--ink-strong)", marginBottom: 16 }}>
             Ready to submit?
           </Title>
 
@@ -412,8 +478,9 @@ export default function UploadPage() {
             type="secondary"
             style={{ display: "block", marginBottom: 24, lineHeight: 1.6 }}
           >
-            The uploaded image will be submitted with the patient information
-            you entered, including the manual Area Code when provided.
+            {ownerView
+              ? "We will read the photo and show you the result in plain language. Any details you added stay anonymous in community statistics."
+              : "The uploaded image will be submitted with the patient information you entered, including the manual Area Code when provided."}
           </Text>
 
           {uploading && (

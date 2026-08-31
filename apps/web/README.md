@@ -4,6 +4,12 @@ This directory contains the React/Vite client for LFA Reader. It provides
 authentication, single-image capture and upload, result review and correction,
 per-disease statistics, Columbus ZIP Code mapping, and admin user management.
 
+The client ships two experiences behind one login. Pet owners (role `user`)
+get the owner shell: a scan-centered home, plain-language results, their own
+history, and the community map. Doctors and admins get the clinic shell: a
+sidebar workbench with a dashboard, all submissions, full statistics, the map,
+and (admin only) user management with doctor-application review.
+
 The maintained local workflow is macOS-based.
 
 ## Supported Workflows
@@ -73,12 +79,13 @@ npm run build
 
 ```text
 src/
-├── components/      # Shared UI, navigation, camera, and ZIP map
+├── components/      # Shell layouts, route guards, camera, and ZIP map
 ├── context/         # Authentication provider and shared auth hook
 ├── locales/         # User-facing warning text
 ├── pages/           # Route-level screens and focused helper modules
 ├── services/        # Axios API client
-└── utils/           # Reusable workflow and formatting helpers
+├── theme/           # Ant Design theme tokens for the two shells
+└── utils/           # Workflow, formatting, and plain-language helpers
 ```
 
 The `@shared` Vite alias points to the repository-level `shared/` directory so
@@ -86,6 +93,13 @@ the web client can consume canonical workflow and reference data.
 
 ## Behavior Notes
 
+- After login, `/` routes by role: `user` lands in the owner shell (`/home`),
+  doctors and admins in the clinic shell (`/clinic`). Record-level pages
+  (`/upload`, `/camera`, `/results`) are shared and render inside the
+  caller's own shell. Legacy paths (`/analytics`, `/users`) redirect.
+- The community map calls the aggregate-only `/api/stats/map` endpoint, open
+  to every signed-in role; the full `/api/stats/global` view is
+  clinical-only.
 - Authentication tokens are stored in `localStorage` and attached to API
   requests as JWT bearer tokens.
 - Live browser camera access requires a secure context. When unavailable or

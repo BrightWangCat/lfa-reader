@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Table,
   Tag,
   Button,
+  Select,
   Space,
   Popconfirm,
   Typography,
@@ -16,10 +17,30 @@ import {
   DeleteOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
+import diseases from "@shared/data/diseases.json";
 import { listImages, deleteImage } from "../services/api";
 import { formatEasternDateTime } from "../utils/dateFormat";
+import { isPositiveFinal } from "../utils/resultDisplay";
+import { useAuth } from "../context/authStore";
+import { isClinicalRole } from "./userRoles";
+import { startTestPathFor } from "../utils/shellPaths";
 
 const { Title } = Typography;
+
+const RESULT_FILTERS = [
+  { value: "all", label: "All results" },
+  { value: "positive", label: "Positive" },
+  { value: "negative", label: "Negative" },
+  { value: "pending", label: "Pending" },
+];
+
+const matchesResultFilter = (record, filter) => {
+  const final = record.manual_correction || record.cv_result;
+  if (filter === "positive") return isPositiveFinal(final);
+  if (filter === "negative") return final === "Negative";
+  if (filter === "pending") return !final;
+  return true;
+};
 
 const statusConfig = {
   completed: { color: "green", label: "Done" },
@@ -32,8 +53,13 @@ export default function History() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const [diseaseFilter, setDiseaseFilter] = useState("all");
+  const [resultFilter, setResultFilter] = useState("all");
   const navigate = useNavigate();
   const { message } = App.useApp();
+  const { user } = useAuth();
+  const ownerView = !isClinicalRole(user?.role);
+  const startPath = startTestPathFor(user);
 
   useEffect(() => {
     fetchImages();
@@ -65,19 +91,31 @@ export default function History() {
   const renderResultTag = (record) => {
     const final = record.manual_correction || record.cv_result;
     if (final) {
-      const isCorrected = !!record.manual_correction;
+      const color = isPositiveFinal(final)
+        ? "red"
+        : final === "Negative"
+          ? "green"
+          : "default";
       return (
-        <Tag
-          color={isCorrected ? "green" : "blue"}
-          style={{ whiteSpace: "normal", margin: 0 }}
-        >
+        <Tag color={color} style={{ whiteSpace: "normal", margin: 0 }}>
           {final}
-          {isCorrected && " ✓"}
+          {record.manual_correction ? " (reviewed)" : ""}
         </Tag>
       );
     }
     return <Typography.Text type="secondary">--</Typography.Text>;
   };
+
+  const filteredImages = useMemo(
+    () =>
+      images.filter(
+        (record) =>
+          (diseaseFilter === "all" ||
+            record.disease_category === diseaseFilter) &&
+          matchesResultFilter(record, resultFilter)
+      ),
+    [images, diseaseFilter, resultFilter]
+  );
 
   const columns = [
     {
@@ -137,14 +175,18 @@ export default function History() {
       responsive: ["lg"],
       render: (date) => formatEasternDateTime(date),
     },
-    {
-      title: "Uploaded By",
-      dataIndex: "username",
-      key: "user",
-      width: 120,
-      responsive: ["md"],
-      render: (u) => u || "Unknown",
-    },
+    ...(ownerView
+      ? []
+      : [
+          {
+            title: "Uploaded By",
+            dataIndex: "username",
+            key: "user",
+            width: 120,
+            responsive: ["md"],
+            render: (u) => u || "Unknown",
+          },
+        ]),
     {
       title: "Actions",
       key: "actions",
@@ -186,18 +228,40 @@ export default function History() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 24,
+          flexWrap: "wrap",
+          gap: 12,
+          marginBottom: 16,
         }}
       >
-        <Title level={3} style={{ color: "#1a365d", margin: 0 }}>
-          Test Results
+        <Title level={3} style={{ color: "var(--ink-strong)", margin: 0 }}>
+          {ownerView ? "My Results" : "Submissions"}
         </Title>
-        <Link to="/">
+        <Link to={startPath}>
           <Button type="primary" icon={<PlusOutlined />}>
             New Test
           </Button>
         </Link>
       </div>
+
+      {!ownerView && (
+        <Space wrap style={{ marginBottom: 16 }}>
+          <Select
+            value={diseaseFilter}
+            onChange={setDiseaseFilter}
+            style={{ width: 180 }}
+            options={[
+              { value: "all", label: "All workflows" },
+              ...diseases.map((d) => ({ value: d.label, label: d.label })),
+            ]}
+          />
+          <Select
+            value={resultFilter}
+            onChange={setResultFilter}
+            style={{ width: 140 }}
+            options={RESULT_FILTERS}
+          />
+        </Space>
+      )}
 
       {error && (
         <Alert
@@ -210,14 +274,14 @@ export default function History() {
 
       <Table
         columns={columns}
-        dataSource={images}
+        dataSource={filteredImages}
         rowKey="id"
         loading={loading}
         scroll={{ x: 500 }}
         locale={{
           emptyText: (
             <Empty description="No test results yet.">
-              <Link to="/">
+              <Link to={startPath}>
                 <Button type="primary">Start your first test</Button>
               </Link>
             </Empty>

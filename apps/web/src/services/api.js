@@ -38,6 +38,14 @@ export const correctReading = (imageId, manualCorrection) =>
   api.put(`/api/readings/image/${imageId}/correct`, {
     manual_correction: manualCorrection,
   });
+// Map-only aggregate open to every signed-in role; the full /stats/global
+// stays clinical-only.
+export const getMapStats = (diseaseCategory) =>
+  api.get("/api/stats/map", {
+    params: diseaseCategory ? { disease_category: diseaseCategory } : {},
+  });
+export const decideDoctorApplication = (userId, decision) =>
+  api.put(`/api/users/${userId}/doctor-application`, { decision });
 
 // Build a token-bearing URL for use in <img src> / download links.
 export const buildImageFileUrl = (imageId, original = false) => {

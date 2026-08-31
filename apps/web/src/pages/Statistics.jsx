@@ -12,7 +12,6 @@ import {
   Tag,
   App,
 } from "antd";
-import { Pie } from "@ant-design/charts";
 import api from "../services/api";
 import ZipCodeMap from "../components/ZipCodeMap";
 import {
@@ -39,12 +38,6 @@ const DIMENSION_LABELS = {
   area_code: "Area Code",
   preventive_treatment: "Preventive Treatment (6mo)",
 };
-
-const PIE_PALETTE = [
-  "#2b6cb0", "#38a169", "#e53e3e", "#dd6b20", "#805ad5",
-  "#d69e2e", "#319795", "#b83280", "#5a67d8", "#ed8936",
-  "#4fd1c5", "#fc8181", "#90cdf4", "#fbd38d", "#c6f6d5",
-];
 
 const CATEGORY_ORDER = ["Infectious", "Cancer"];
 const SPECIES_LABEL = { cat: "Cats", dog: "Dogs" };
@@ -129,8 +122,8 @@ export default function Statistics() {
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-      <Title level={3} style={{ color: "#1a365d", marginBottom: 8 }}>
-        Global Test Statistics
+      <Title level={3} style={{ color: "var(--ink-strong)", marginBottom: 8 }}>
+        Statistics
       </Title>
       <Text type="secondary" style={{ display: "block", marginBottom: 24 }}>
         Aggregated results from all users' tests with patient information
@@ -138,7 +131,7 @@ export default function Statistics() {
 
       {groupedDiseases.map(({ category, items }) => (
         <div key={category} style={{ marginBottom: 32 }}>
-          <Title level={4} style={{ color: "#2d3748", marginBottom: 16 }}>
+          <Title level={4} style={{ color: "var(--ink-strong)", marginBottom: 16 }}>
             {category}
           </Title>
           <Row gutter={[16, 16]}>
@@ -157,7 +150,7 @@ export default function Statistics() {
                       boxShadow: isSelected ? "0 0 0 2px rgba(43, 108, 176, 0.12)" : "none",
                     }}
                   >
-                    <Title level={5} style={{ color: "#1a365d", margin: 0 }}>
+                    <Title level={5} style={{ color: "var(--ink-strong)", margin: 0 }}>
                       {disease.label}
                     </Title>
                     <div style={{ marginTop: 12 }}>
@@ -254,7 +247,7 @@ function ZipCodeMapSection({ zipDimensionData, positiveCategories }) {
 
   return (
     <div style={{ marginBottom: 32 }}>
-      <Title level={4} style={{ color: "#1a365d", marginBottom: 16 }}>
+      <Title level={4} style={{ color: "var(--ink-strong)", marginBottom: 16 }}>
         Geographic Distribution (Columbus, OH)
       </Title>
       <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
@@ -269,7 +262,7 @@ function ZipCodeMapSection({ zipDimensionData, positiveCategories }) {
   );
 }
 
-const TEMPERATURE_COLOR = "#2b6cb0";
+const TEMPERATURE_COLOR = "#64748B";
 
 function WeeklyTrendChart({
   weeklyTrends = [],
@@ -287,7 +280,7 @@ function WeeklyTrendChart({
 
   return (
     <div style={{ marginBottom: 32 }}>
-      <Title level={4} style={{ color: "#1a365d", marginBottom: 8 }}>
+      <Title level={4} style={{ color: "var(--ink-strong)", marginBottom: 8 }}>
         Weekly Positive Results and Columbus Temperature
       </Title>
       <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
@@ -312,17 +305,24 @@ function WeeklyTrendChart({
   );
 }
 
+// Positive counts and temperature render as two vertically aligned panels
+// with separate scales; a single plot with two y axes misleads and is
+// deliberately avoided.
 function WeeklyTrendSvg({
   weeklyTrends,
   temperatureData,
   positiveCategories,
 }) {
   const width = 720;
-  const height = 320;
-  const margin = { top: 24, right: 58, bottom: 48, left: 46 };
-  const plotWidth = width - margin.left - margin.right;
-  const plotHeight = height - margin.top - margin.bottom;
-  const plotBottom = margin.top + plotHeight;
+  const left = 46;
+  const right = width - 16;
+  const countTop = 22;
+  const countBottom = 182;
+  const labelY = 202;
+  const tempTop = 234;
+  const tempBottom = 282;
+  const height = 296;
+
   const maxCount = Math.max(
     1,
     ...weeklyTrends.flatMap((week) =>
@@ -333,23 +333,22 @@ function WeeklyTrendSvg({
   );
   const temperatures = temperatureData.map((point) => point.temperature);
   const hasTemperature = temperatures.length > 0;
-  const minTemperature = hasTemperature ? Math.min(...temperatures) : 0;
-  const maxTemperature = hasTemperature ? Math.max(...temperatures) : 1;
-  const tempPadding = Math.max((maxTemperature - minTemperature) * 0.15, 2);
-  const tempMin = minTemperature - tempPadding;
-  const tempMax = maxTemperature + tempPadding;
-  const xStep = plotWidth / weeklyTrends.length;
+  const tempMin = hasTemperature ? Math.min(...temperatures) - 2 : 0;
+  const tempMax = hasTemperature ? Math.max(...temperatures) + 2 : 1;
+  const xStep = (right - left) / weeklyTrends.length;
   const groupWidth = xStep * 0.66;
   const barWidth = groupWidth / positiveCategories.length;
-  const gridLines = [0, 1, 2, 3, 4];
+  const gridLines = [0, 1, 2];
   const temperatureByWeek = new Map(
     temperatureData.map((point) => [point.week, point.temperature])
   );
 
-  const xCenter = (weekIndex) => margin.left + xStep * weekIndex + xStep / 2;
-  const countY = (count) => plotBottom - (count / maxCount) * plotHeight;
+  const xCenter = (weekIndex) => left + xStep * weekIndex + xStep / 2;
+  const countY = (count) =>
+    countBottom - (count / maxCount) * (countBottom - countTop);
   const temperatureY = (temperature) =>
-    plotBottom - ((temperature - tempMin) / (tempMax - tempMin)) * plotHeight;
+    tempBottom -
+    ((temperature - tempMin) / (tempMax - tempMin || 1)) * (tempBottom - tempTop);
 
   const linePoints = weeklyTrends
     .map((week, index) => {
@@ -359,6 +358,9 @@ function WeeklyTrendSvg({
     })
     .filter(Boolean)
     .join(" ");
+  const lastTemperatureWeek = [...weeklyTrends]
+    .reverse()
+    .find((week) => temperatureByWeek.get(week.label) !== undefined);
 
   return (
     <div>
@@ -366,47 +368,28 @@ function WeeklyTrendSvg({
         {positiveCategories.map((category) => (
           <LegendItem key={category} color={CATEGORY_COLORS[category]} label={category} />
         ))}
-        {hasTemperature && (
-          <LegendItem color={TEMPERATURE_COLOR} label="Avg Temp °F" line />
-        )}
       </div>
       <svg
         role="img"
-        aria-label="Weekly positive result counts and Columbus average temperature"
+        aria-label="Weekly positive result counts with Columbus average temperature below"
         viewBox={`0 0 ${width} ${height}`}
         style={{ width: "100%", height: "auto", display: "block" }}
       >
-        <text x={margin.left} y={14} fill="#718096" fontSize="12">Positive tests</text>
-        {hasTemperature && (
-          <text x={width - margin.right + 4} y={14} fill="#718096" fontSize="12">°F</text>
-        )}
+        <text x={left} y={12} fill="#718096" fontSize="12">Positive tests</text>
         {gridLines.map((line) => {
           const ratio = line / (gridLines.length - 1);
-          const y = margin.top + ratio * plotHeight;
+          const y = countTop + ratio * (countBottom - countTop);
           const countLabel = Math.round(maxCount * (1 - ratio));
-          const tempLabel = tempMax - (tempMax - tempMin) * ratio;
           return (
             <g key={line}>
-              <line
-                x1={margin.left}
-                x2={width - margin.right}
-                y1={y}
-                y2={y}
-                stroke="#edf2f7"
-              />
-              <text x={margin.left - 10} y={y + 4} textAnchor="end" fill="#718096" fontSize="11">
+              <line x1={left} x2={right} y1={y} y2={y} stroke="#edf2f7" />
+              <text x={left - 10} y={y + 4} textAnchor="end" fill="#718096" fontSize="11">
                 {countLabel}
               </text>
-              {hasTemperature && (
-                <text x={width - margin.right + 10} y={y + 4} fill="#718096" fontSize="11">
-                  {tempLabel.toFixed(0)}
-                </text>
-              )}
             </g>
           );
         })}
-        <line x1={margin.left} x2={margin.left} y1={margin.top} y2={plotBottom} stroke="#cbd5e0" />
-        <line x1={margin.left} x2={width - margin.right} y1={plotBottom} y2={plotBottom} stroke="#cbd5e0" />
+        <line x1={left} x2={right} y1={countBottom} y2={countBottom} stroke="#cbd5e0" />
 
         {weeklyTrends.map((week, weekIndex) => {
           const groupX = xCenter(weekIndex) - groupWidth / 2;
@@ -416,14 +399,13 @@ function WeeklyTrendSvg({
                 const count = week.positive_counts?.[category] || 0;
                 const x = groupX + categoryIndex * barWidth;
                 const y = countY(count);
-                const barHeight = plotBottom - y;
                 return (
                   <rect
                     key={category}
                     x={x}
                     y={y}
                     width={Math.max(barWidth - 2, 1)}
-                    height={barHeight}
+                    height={countBottom - y}
                     rx="2"
                     fill={CATEGORY_COLORS[category]}
                   />
@@ -431,7 +413,7 @@ function WeeklyTrendSvg({
               })}
               <text
                 x={xCenter(weekIndex)}
-                y={plotBottom + 20}
+                y={labelY}
                 textAnchor="middle"
                 fill="#718096"
                 fontSize="11"
@@ -444,29 +426,28 @@ function WeeklyTrendSvg({
 
         {hasTemperature && linePoints && (
           <>
+            <text x={left} y={tempTop - 10} fill="#718096" fontSize="12">
+              Avg temp, Columbus
+            </text>
             <polyline
               points={linePoints}
               fill="none"
               stroke={TEMPERATURE_COLOR}
-              strokeWidth="3"
+              strokeWidth="2"
               strokeLinejoin="round"
               strokeLinecap="round"
             />
-            {weeklyTrends.map((week, index) => {
-              const temperature = temperatureByWeek.get(week.label);
-              if (temperature === undefined) return null;
-              return (
-                <circle
-                  key={week.week_start}
-                  cx={xCenter(index)}
-                  cy={temperatureY(temperature)}
-                  r="4"
-                  fill={TEMPERATURE_COLOR}
-                  stroke="#ffffff"
-                  strokeWidth="1.5"
-                />
-              );
-            })}
+            {lastTemperatureWeek && (
+              <text
+                x={right - 2}
+                y={temperatureY(temperatureByWeek.get(lastTemperatureWeek.label)) - 8}
+                textAnchor="end"
+                fill="#718096"
+                fontSize="11"
+              >
+                {Math.round(temperatureByWeek.get(lastTemperatureWeek.label))}°F
+              </text>
+            )}
           </>
         )}
       </svg>
@@ -505,7 +486,7 @@ function DimensionSection({
   if (!hasData) {
     return (
       <div style={{ marginBottom: 32 }}>
-        <Title level={4} style={{ color: "#1a365d", marginBottom: 16 }}>
+        <Title level={4} style={{ color: "var(--ink-strong)", marginBottom: 16 }}>
           {dimensionLabel}
         </Title>
         <Empty
@@ -518,7 +499,7 @@ function DimensionSection({
 
   return (
     <div style={{ marginBottom: 32 }}>
-      <Title level={4} style={{ color: "#1a365d", marginBottom: 16 }}>
+      <Title level={4} style={{ color: "var(--ink-strong)", marginBottom: 16 }}>
         {dimensionLabel}
       </Title>
       <Row gutter={[16, 16]}>
@@ -546,7 +527,11 @@ function DimensionSection({
                     No data
                   </div>
                 ) : (
-                  <CategoryPieChart entries={entries} total={total} />
+                  <CategoryBarList
+                    entries={entries}
+                    total={total}
+                    color={CATEGORY_COLORS[cat]}
+                  />
                 )}
               </Card>
             </Col>
@@ -557,46 +542,65 @@ function DimensionSection({
   );
 }
 
-function CategoryPieChart({ entries, total }) {
-  const chartData = entries.map(([label, count]) => ({
-    type: label,
-    value: count,
-  }));
+// Sorted horizontal bars replace the former donut chart: shares compare by
+// length on a common baseline, each row is labeled directly, and the whole
+// list uses the parent category's single hue.
+const BAR_LIST_LIMIT = 8;
 
-  const config = {
-    data: chartData,
-    angleField: "value",
-    colorField: "type",
-    color: PIE_PALETTE,
-    radius: 0.85,
-    innerRadius: 0.55,
-    height: 240,
-    label: {
-      text: (d) => {
-        const pct = ((d.value / total) * 100).toFixed(1);
-        return pct >= 5 ? `${pct}%` : "";
-      },
-      style: { fontSize: 11, fontWeight: 500 },
-    },
-    legend: {
-      color: {
-        position: "bottom",
-        layout: { justifyContent: "center" },
-        itemLabelFontSize: 11,
-        maxRows: 3,
-      },
-    },
-    tooltip: {
-      title: "type",
-      items: [
-        {
-          field: "value",
-          name: "Count",
-        },
-      ],
-    },
-    animate: false,
-  };
+function CategoryBarList({ entries, total, color }) {
+  const shown = entries.slice(0, BAR_LIST_LIMIT);
+  const restCount = entries
+    .slice(BAR_LIST_LIMIT)
+    .reduce((sum, [, count]) => sum + count, 0);
+  const rows = restCount > 0 ? [...shown, ["Other", restCount]] : shown;
+  const maxCount = Math.max(...rows.map(([, count]) => count), 1);
 
-  return <Pie {...config} />;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {rows.map(([label, count]) => (
+        <div key={label}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 12,
+              marginBottom: 3,
+            }}
+          >
+            <span
+              style={{
+                color: "#4a5568",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                marginRight: 8,
+              }}
+            >
+              {label}
+            </span>
+            <span style={{ color: "#718096", flexShrink: 0 }}>
+              {count} · {((count / total) * 100).toFixed(0)}%
+            </span>
+          </div>
+          <div
+            style={{
+              height: 8,
+              borderRadius: 4,
+              background: "#f1f5f9",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${(count / maxCount) * 100}%`,
+                height: "100%",
+                borderRadius: 4,
+                background: color,
+              }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }

@@ -14,18 +14,20 @@ import {
 import {
   CrownOutlined,
   DeleteOutlined,
+  MedicineBoxOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import api from "../services/api";
+import api, { decideDoctorApplication } from "../services/api";
 import { useAuth } from "../context/authStore";
 import { formatEasternDate } from "../utils/dateFormat";
 import { ROLE_OPTIONS, getRoleDisplay, normalizeRole } from "./userRoles";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 // Role display configuration
 const roleConfig = {
   admin: { color: "gold", icon: <CrownOutlined />, label: "Admin" },
+  doctor: { color: "blue", icon: <MedicineBoxOutlined />, label: "Doctor" },
   user: { color: "default", icon: <UserOutlined />, label: "User" },
 };
 
@@ -65,6 +67,23 @@ export default function UserManagement() {
       message.error(err.response?.data?.detail || "Failed to update role");
     } finally {
       setActionLoading((prev) => ({ ...prev, [userId]: false }));
+    }
+  };
+
+  const handleDecision = async (userId, decision) => {
+    setActionLoading((prev) => ({ ...prev, [`app_${userId}`]: true }));
+    try {
+      const res = await decideDoctorApplication(userId, decision);
+      setUsers((prev) => prev.map((u) => (u.id === userId ? res.data : u)));
+      message.success(
+        decision === "approve" ? "Application approved" : "Application rejected"
+      );
+    } catch (err) {
+      message.error(
+        err.response?.data?.detail || "Failed to decide application"
+      );
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [`app_${userId}`]: false }));
     }
   };
 
@@ -110,6 +129,40 @@ export default function UserManagement() {
             {display.label}
           </Tag>
         );
+      },
+    },
+    {
+      title: "Doctor Application",
+      key: "application",
+      width: 220,
+      render: (_, record) => {
+        if (record.doctor_application_status === "pending") {
+          return (
+            <Space size="small">
+              <Tag color="gold">Pending</Tag>
+              <Button
+                size="small"
+                type="primary"
+                loading={actionLoading[`app_${record.id}`]}
+                onClick={() => handleDecision(record.id, "approve")}
+              >
+                Approve
+              </Button>
+              <Button
+                size="small"
+                danger
+                loading={actionLoading[`app_${record.id}`]}
+                onClick={() => handleDecision(record.id, "reject")}
+              >
+                Reject
+              </Button>
+            </Space>
+          );
+        }
+        if (record.doctor_application_status === "rejected") {
+          return <Tag>Rejected</Tag>;
+        }
+        return <Text type="secondary">--</Text>;
       },
     },
     {
@@ -176,8 +229,8 @@ export default function UserManagement() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto" }}>
-      <Title level={3} style={{ color: "#1a365d", marginBottom: 24 }}>
+    <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+      <Title level={3} style={{ color: "var(--ink-strong)", marginBottom: 24 }}>
         User Management
       </Title>
       <Table
@@ -187,6 +240,7 @@ export default function UserManagement() {
         pagination={false}
         bordered
         size="middle"
+        scroll={{ x: 900 }}
       />
     </div>
   );

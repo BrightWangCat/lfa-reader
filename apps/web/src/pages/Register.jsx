@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Card, Form, Input, Button, Typography, App } from "antd";
+import { Card, Checkbox, Form, Input, Button, Typography, App } from "antd";
 import { MailOutlined, UserOutlined, LockOutlined } from "@ant-design/icons";
 import { useAuth } from "../context/authStore";
 
@@ -15,7 +15,12 @@ export default function Register() {
   const onFinish = async (values) => {
     setSubmitting(true);
     try {
-      await register(values.email, values.username, values.password);
+      await register(
+        values.email,
+        values.username,
+        values.password,
+        Boolean(values.applyDoctor)
+      );
       navigate("/login", { state: { registered: true } });
     } catch (err) {
       message.error(err.response?.data?.detail || "Registration failed");
@@ -118,6 +123,13 @@ export default function Register() {
               placeholder="Confirm password"
               size="large"
             />
+          </Form.Item>
+
+          <Form.Item name="applyDoctor" valuePropName="checked" style={{ marginBottom: 8 }}>
+            <Checkbox>
+              I am a veterinarian. Apply for a doctor account, reviewed by an
+              administrator.
+            </Checkbox>
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>

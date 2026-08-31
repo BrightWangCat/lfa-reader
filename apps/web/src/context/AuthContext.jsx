@@ -46,8 +46,13 @@ export function AuthProvider({ children }) {
     setUser(userRes.data);
   };
 
-  const register = async (email, username, password) => {
-    await api.post("/api/users/register", { email, username, password });
+  const register = async (email, username, password, applyDoctor = false) => {
+    await api.post("/api/users/register", {
+      email,
+      username,
+      password,
+      apply_doctor: applyDoctor,
+    });
   };
 
   const logout = () => {

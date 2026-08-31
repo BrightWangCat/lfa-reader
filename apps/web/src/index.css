@@ -1,9 +1,56 @@
 :root {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: #2d3748;
   background-color: #f0f4f8;
+  --heading-font: "Space Grotesk", "Segoe UI", sans-serif;
+  --brand-primary: #1d5fbf;
+  --shell-bg: #f4f7fa;
+  --ink-strong: #14202b;
+  --ink-secondary: #566b7e;
+  --surface-border: #dbe4ec;
+  --result-good: #1e7a50;
+  --result-good-bg: #e4f2ea;
+  --result-bad: #bf3e2b;
+  --result-bad-bg: #fae8e4;
+  --result-pending: #9a6b1f;
+  --result-pending-bg: #f5eedd;
+  --result-neutral: #64748b;
+  --result-neutral-bg: #eef2f6;
+}
+
+/* Owner shell: warm companion palette with the Bricolage display face. */
+.owner-shell {
+  --heading-font: "Bricolage Grotesque", "Avenir Next", "Trebuchet MS", sans-serif;
+  --brand-primary: #c0532b;
+  --shell-bg: #faf6f0;
+  --ink-strong: #2e2620;
+  --ink-secondary: #6e6257;
+  --surface-border: #eadfd2;
+  --result-good: #2f7d53;
+  --result-good-bg: #e7f2ea;
+  --result-bad: #b23b25;
+  --result-bad-bg: #f9e7e1;
+  --result-pending: #9a6b1f;
+  --result-pending-bg: #f6edda;
+  --result-neutral: #8a8178;
+  --result-neutral-bg: #f1ece4;
+}
+
+/* Clinic shell: cool instrument palette with the Space Grotesk display face. */
+.clinic-shell {
+  --heading-font: "Space Grotesk", "Segoe UI", sans-serif;
+  --brand-primary: #1d5fbf;
+  --shell-bg: #f4f7fa;
+  --ink-strong: #14202b;
+  --ink-secondary: #566b7e;
+  --surface-border: #dbe4ec;
+}
+
+.owner-shell h1, .owner-shell h2, .owner-shell h3, .owner-shell h4, .owner-shell h5,
+.clinic-shell h1, .clinic-shell h2, .clinic-shell h3, .clinic-shell h4, .clinic-shell h5 {
+  font-family: var(--heading-font);
 }
 
 *,
