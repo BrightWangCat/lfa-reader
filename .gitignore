@@ -44,3 +44,5 @@ DerivedData/
 *.dSYM
 
 *.png
+# Asset catalog images are app source and must stay tracked
+!apps/ios/LFAReader/Assets.xcassets/**/*.png
