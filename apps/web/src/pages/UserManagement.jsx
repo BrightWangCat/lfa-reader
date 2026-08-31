@@ -27,8 +27,8 @@ const { Title, Text } = Typography;
 // Role display configuration
 const roleConfig = {
   admin: { color: "gold", icon: <CrownOutlined />, label: "Admin" },
-  doctor: { color: "blue", icon: <MedicineBoxOutlined />, label: "Doctor" },
-  user: { color: "default", icon: <UserOutlined />, label: "User" },
+  doctor: { color: "blue", icon: <MedicineBoxOutlined />, label: "Veterinarian" },
+  user: { color: "default", icon: <UserOutlined />, label: "Pet Owner" },
 };
 
 export default function UserManagement() {
@@ -132,9 +132,9 @@ export default function UserManagement() {
       },
     },
     {
-      title: "Doctor Application",
+      title: "Veterinarian Application",
       key: "application",
-      width: 220,
+      width: 230,
       render: (_, record) => {
         if (record.doctor_application_status === "pending") {
           return (
@@ -184,7 +184,7 @@ export default function UserManagement() {
               onChange={(value) => handleSetRole(record.id, value)}
               disabled={isSelf}
               loading={actionLoading[record.id]}
-              style={{ width: 110 }}
+              style={{ width: 140 }}
               size="small"
               options={ROLE_OPTIONS}
             />

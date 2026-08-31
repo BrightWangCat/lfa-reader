@@ -14,9 +14,9 @@ struct SettingsView: View {
                         LabeledContent("Role", value: user.displayRole)
 
                         if user.doctorApplicationStatus == "pending" {
-                            LabeledContent("Doctor Application", value: "Under review")
+                            LabeledContent("Veterinarian Application", value: "Under review")
                         } else if user.doctorApplicationStatus == "rejected" {
-                            LabeledContent("Doctor Application", value: "Declined")
+                            LabeledContent("Veterinarian Application", value: "Declined")
                         }
                     }
                 }
@@ -205,7 +205,7 @@ struct UserManagementView: View {
 
             if user.doctorApplicationStatus == "pending" {
                 HStack(spacing: 10) {
-                    Label("Doctor application", systemImage: "stethoscope")
+                    Label("Veterinarian application", systemImage: "stethoscope")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.blue)
 
@@ -238,7 +238,7 @@ struct UserManagementView: View {
                     .disabled(isOperating)
                 }
             } else if user.doctorApplicationStatus == "rejected" {
-                Label("Doctor application declined", systemImage: "stethoscope")
+                Label("Veterinarian application declined", systemImage: "stethoscope")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

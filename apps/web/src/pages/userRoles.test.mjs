@@ -13,7 +13,7 @@ import {
 
 test("normalizes legacy single role to user", () => {
   assert.equal(normalizeRole("single"), USER_ROLE);
-  assert.equal(getRoleDisplay("single").label, "User");
+  assert.equal(getRoleDisplay("single").label, "Pet Owner");
 });
 
 test("keeps admin role unchanged", () => {
@@ -24,17 +24,17 @@ test("keeps admin role unchanged", () => {
   });
 });
 
-test("displays the doctor role", () => {
+test("displays the doctor role as Veterinarian", () => {
   assert.deepEqual(getRoleDisplay("doctor"), {
     role: DOCTOR_ROLE,
-    label: "Doctor",
+    label: "Veterinarian",
   });
 });
 
 test("role options submit user, doctor and admin values", () => {
   assert.deepEqual(ROLE_OPTIONS, [
-    { value: USER_ROLE, label: "User" },
-    { value: DOCTOR_ROLE, label: "Doctor" },
+    { value: USER_ROLE, label: "Pet Owner" },
+    { value: DOCTOR_ROLE, label: "Veterinarian" },
     { value: ADMIN_ROLE, label: "Admin" },
   ]);
 });

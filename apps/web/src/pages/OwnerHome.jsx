@@ -83,14 +83,14 @@ export default function OwnerHome() {
         <Alert
           type="info"
           showIcon
-          message="Your doctor account application is being reviewed by an administrator."
+          message="Your veterinarian account application is being reviewed by an administrator."
         />
       )}
       {applicationStatus === "rejected" && (
         <Alert
           type="warning"
           showIcon
-          message="Your doctor account application was declined."
+          message="Your veterinarian account application was declined."
           description="You can keep using your regular account. Contact the administrator if you believe this is a mistake."
         />
       )}

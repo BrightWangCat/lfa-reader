@@ -8,12 +8,13 @@ enum UserRole: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Display names match the account types offered at registration.
     var displayName: String {
         switch self {
         case .user:
-            return "User"
+            return "Pet Owner"
         case .doctor:
-            return "Doctor"
+            return "Veterinarian"
         case .admin:
             return "Admin"
         }

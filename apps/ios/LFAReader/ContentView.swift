@@ -127,13 +127,13 @@ struct OwnerHomeView: View {
         switch authViewModel.currentUser?.doctorApplicationStatus {
         case "pending":
             bannerLabel(
-                text: "Your doctor account application is being reviewed by an administrator.",
+                text: "Your veterinarian account application is being reviewed by an administrator.",
                 symbol: "hourglass",
                 tint: .blue
             )
         case "rejected":
             bannerLabel(
-                text: "Your doctor account application was declined. You can keep using your regular account.",
+                text: "Your veterinarian account application was declined. You can keep using your regular account.",
                 symbol: "info.circle",
                 tint: .orange
             )
