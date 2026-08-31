@@ -35,15 +35,16 @@ The product ships two experiences behind one login.
 
 | Role | Experience |
 |------|------------|
-| `user` (pet owner) | Owner shell: a scan-centered home, plain-language result summaries, own submissions only, and the community ZIP map |
-| `doctor` | Clinic shell: every submission with full clinical detail, correction authority over any record, and the full statistics views |
-| `admin` | Clinic shell plus user management and doctor-application review |
+| `user`, shown as Pet Owner | Owner shell: a scan-centered home, plain-language result summaries, own submissions only, and the community ZIP map |
+| `doctor`, shown as Veterinarian | Clinic shell: every submission with full clinical detail, correction authority over any record, and the full statistics views |
+| `admin` | Clinic shell plus user management and veterinarian-application review |
 
-Doctor accounts are created by applying during registration; an administrator
-approves or rejects the application. Authorization is enforced by the backend:
-regular users read and correct only their own submissions, the full statistics
-endpoint requires a clinical role, and a dedicated map endpoint serves only
-aggregated positive counts per ZIP code to every signed-in role.
+Veterinarian accounts are requested by choosing the Veterinarian account type
+at registration; an administrator approves or rejects the application.
+Authorization is enforced by the backend: regular users read and correct only
+their own submissions, the full statistics endpoint requires a clinical role,
+and a dedicated map endpoint serves only aggregated positive counts per ZIP
+code, viewed per workflow, to every signed-in role.
 
 ## Highlights
 
@@ -66,8 +67,8 @@ role.
 | Per-disease statistics dashboard (clinical roles) | Yes | Yes |
 | Weekly positive-result trends with Columbus temperature context (clinical roles) | Yes | Yes |
 | Patient metadata distribution charts (clinical roles) | Yes | Yes |
-| Columbus ZIP Code positive-case map (all roles) | Yes | Yes |
-| Doctor application at registration with admin review | Yes | Yes |
+| Columbus ZIP Code positive-case map, per workflow (all roles) | Yes | Yes |
+| Veterinarian account type at registration with admin review | Yes | Yes |
 | Admin user management | Yes | Yes |
 
 The web statistics view uses workflow-specific result categories: FIV/FeLV
