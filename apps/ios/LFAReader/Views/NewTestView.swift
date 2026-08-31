@@ -7,9 +7,14 @@ private enum NewTestDestination: Hashable {
 }
 
 struct NewTestView: View {
+    @Environment(AuthViewModel.self) private var authViewModel
     @State private var viewModel = NewTestViewModel()
     @State private var path: [NewTestDestination] = []
     @State private var uploadTask: Task<Void, Never>?
+
+    private var ownerView: Bool {
+        !(authViewModel.currentUser?.isClinical ?? false)
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -43,9 +48,13 @@ struct NewTestView: View {
     private var workflowList: some View {
         List {
             Section {
-                Text("Choose the disease workflow that matches the cassette you are about to read.")
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 4)
+                Text(
+                    ownerView
+                        ? "Pick the test kit you are using. The name is printed on the cassette or its box."
+                        : "Choose the disease workflow that matches the cassette you are about to read."
+                )
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 4)
             }
 
             ForEach(DiseaseWorkflow.groupedByCategory(), id: \.category) { group in
@@ -67,9 +76,13 @@ struct NewTestView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     workflowBadge(workflow)
 
-                    Text("Add a single cassette image for the \(workflow.label) workflow.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        ownerView
+                            ? "Take or choose one clear photo of the whole test cassette."
+                            : "Add a single cassette image for the \(workflow.label) workflow."
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 6)
             }
@@ -143,6 +156,7 @@ struct NewTestView: View {
 
             PatientInfoFormView(
                 workflow: workflow,
+                ownerExperience: ownerView,
                 shareInfo: $viewModel.shareInfo,
                 age: $viewModel.age,
                 sex: $viewModel.sex,
@@ -346,4 +360,5 @@ struct NewTestView: View {
 
 #Preview {
     NewTestView()
+        .environment(AuthViewModel())
 }

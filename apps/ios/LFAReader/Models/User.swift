@@ -3,6 +3,7 @@ import Foundation
 /// User roles matching the backend RBAC system
 enum UserRole: String, Codable, CaseIterable, Identifiable {
     case user
+    case doctor
     case admin
 
     var id: String { rawValue }
@@ -11,9 +12,17 @@ enum UserRole: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .user:
             return "User"
+        case .doctor:
+            return "Doctor"
         case .admin:
             return "Admin"
         }
+    }
+
+    /// Clinical means doctor or admin: full visibility over all readings.
+    /// Mirrors CLINICAL_ROLES in the backend role_utils.
+    var isClinical: Bool {
+        self == .doctor || self == .admin
     }
 }
 
@@ -23,19 +32,26 @@ struct UserResponse: Codable, Identifiable {
     let email: String
     let username: String
     let role: String
+    /// nil = never applied, "pending" = awaiting review, "rejected" = declined.
+    let doctorApplicationStatus: String?
     let createdAt: String
 
     /// Normalizes any legacy regular-user role to the current `user` role.
     var normalizedRole: UserRole {
-        role == UserRole.admin.rawValue ? .admin : .user
+        UserRole(rawValue: role) ?? .user
     }
 
     var displayRole: String {
         normalizedRole.displayName
     }
 
+    var isClinical: Bool {
+        normalizedRole.isClinical
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, email, username, role
+        case doctorApplicationStatus = "doctor_application_status"
         case createdAt = "created_at"
     }
 }

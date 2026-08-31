@@ -77,12 +77,6 @@ private struct WorkflowStatisticsDetailView: View {
         return dimensions
     }
 
-    private let slicePalette: [Color] = [
-        .blue, .orange, .green, .red, .purple,
-        .cyan, .pink, .yellow, .mint, .indigo,
-        .brown, .teal, .gray, Color(.systemRed), Color(.systemTeal),
-    ]
-
     init(workflow: DiseaseWorkflow) {
         self.workflow = workflow
         _viewModel = State(initialValue: StatisticsViewModel(workflow: workflow))
@@ -225,7 +219,7 @@ private struct WorkflowStatisticsDetailView: View {
                             x: .value("Week", row.weekLabel),
                             y: .value("Avg Temp °F", row.temperature)
                         )
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color(red: 0.392, green: 0.455, blue: 0.545))
                         .symbol(Circle())
                         .interpolationMethod(.catmullRom)
                     }
@@ -247,42 +241,31 @@ private struct WorkflowStatisticsDetailView: View {
         }
     }
 
+    /// Result totals as directly labeled horizontal bars. Shares compare by
+    /// length on a common baseline, replacing the former donut chart.
     private func distributionChart(_ stats: GlobalStats) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let rows = GlobalStats.displayCategories.map { category in
+            (category: category, count: stats.categoryTotals[category] ?? 0)
+        }
+        return VStack(alignment: .leading, spacing: 8) {
             Text("Result Distribution")
                 .font(.headline)
 
-            Chart(GlobalStats.displayCategories, id: \.self) { category in
-                let count = stats.categoryTotals[category] ?? 0
-                SectorMark(
-                    angle: .value("Count", count),
-                    innerRadius: .ratio(0.55),
-                    angularInset: 1.5
+            Chart(rows, id: \.category) { row in
+                BarMark(
+                    x: .value("Count", row.count),
+                    y: .value("Category", row.category)
                 )
-                .foregroundStyle(categoryColor(category))
-                .annotation(position: .overlay) {
-                    if count > 0 {
-                        Text("\(count)")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.white)
-                    }
+                .foregroundStyle(categoryColor(row.category))
+                .cornerRadius(3)
+                .annotation(position: .trailing) {
+                    Text("\(row.count)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
                 }
             }
-            .frame(height: 220)
-
-            FlowLayout(spacing: 12) {
-                ForEach(GlobalStats.displayCategories, id: \.self) { category in
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(categoryColor(category))
-                            .frame(width: 8, height: 8)
-                        Text(category)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
+            .chartXAxis(.hidden)
+            .frame(height: CGFloat(rows.count) * 34 + 12)
         }
         .padding()
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
@@ -298,7 +281,7 @@ private struct WorkflowStatisticsDetailView: View {
                     ForEach(pieCategories, id: \.self) { category in
                         if let valueCounts = dimData[category],
                            valueCounts.values.contains(where: { $0 > 0 }) {
-                            categoryPieCard(category: category, data: valueCounts)
+                            categoryBarCard(category: category, data: valueCounts)
                         }
                     }
                 }
@@ -306,9 +289,15 @@ private struct WorkflowStatisticsDetailView: View {
         }
     }
 
-    private func categoryPieCard(category: String, data: [String: Int]) -> some View {
+    /// Sorted horizontal bars in the parent category's single hue, each row
+    /// labeled directly. Long tails collapse into an "Other" row.
+    private func categoryBarCard(category: String, data: [String: Int]) -> some View {
         let sorted = data.filter { $0.value > 0 }.sorted { $0.value > $1.value }
         let total = sorted.reduce(0) { $0 + $1.value }
+        let shown = Array(sorted.prefix(8))
+        let restCount = sorted.dropFirst(8).reduce(0) { $0 + $1.value }
+        let rows = shown.map { (key: $0.key, value: $0.value) }
+            + (restCount > 0 ? [(key: "Other", value: restCount)] : [])
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -320,36 +309,22 @@ private struct WorkflowStatisticsDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Chart(Array(sorted.enumerated()), id: \.element.key) { index, item in
-                SectorMark(
-                    angle: .value("Count", item.value),
-                    innerRadius: .ratio(0.55),
-                    angularInset: 0.5
+            Chart(rows, id: \.key) { row in
+                BarMark(
+                    x: .value("Count", row.value),
+                    y: .value("Value", row.key)
                 )
-                .foregroundStyle(slicePalette[index % slicePalette.count])
-                .annotation(position: .overlay) {
-                    let pct = Double(item.value) / Double(max(total, 1)) * 100
-                    if pct >= 5 {
-                        Text(String(format: "%.0f%%", pct))
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.white)
-                    }
+                .foregroundStyle(categoryColor(category))
+                .cornerRadius(3)
+                .annotation(position: .trailing) {
+                    let pct = Double(row.value) / Double(max(total, 1)) * 100
+                    Text("\(row.value) · \(String(format: "%.0f%%", pct))")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
                 }
             }
-            .frame(height: 200)
-
-            FlowLayout(spacing: 8) {
-                ForEach(Array(sorted.enumerated()), id: \.element.key) { index, item in
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(slicePalette[index % slicePalette.count])
-                            .frame(width: 8, height: 8)
-                        Text(item.key)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
+            .chartXAxis(.hidden)
+            .frame(height: CGFloat(rows.count) * 30 + 12)
         }
         .padding()
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
@@ -415,18 +390,20 @@ private struct WorkflowStatisticsDetailView: View {
         }
     }
 
+    /// Result-status palette shared with the web client: negative stays calm
+    /// green, positive families use a warm ramp from light to severe.
     private func categoryColor(_ category: String) -> Color {
         switch category {
         case "Negative":
-            return .green
+            return Color(red: 0.118, green: 0.478, blue: 0.314)
         case "Positive":
-            return Color(red: 0.77, green: 0.19, blue: 0.19)
+            return Color(red: 0.749, green: 0.243, blue: 0.169)
         case "Positive L":
-            return .red
+            return Color(red: 0.788, green: 0.439, blue: 0.247)
         case "Positive I":
-            return .orange
+            return Color(red: 0.651, green: 0.271, blue: 0.149)
         case "Positive L+I":
-            return .purple
+            return Color(red: 0.486, green: 0.176, blue: 0.071)
         default:
             return .gray
         }
@@ -446,53 +423,6 @@ private struct WeeklyTemperatureRow: Identifiable {
     let temperature: Double
 
     var id: String { weekLabel }
-}
-
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = arrange(proposal: proposal, subviews: subviews)
-        return result.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = arrange(
-            proposal: ProposedViewSize(width: bounds.width, height: bounds.height),
-            subviews: subviews
-        )
-        for (index, position) in result.positions.enumerated() {
-            subviews[index].place(
-                at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y),
-                proposal: .unspecified
-            )
-        }
-    }
-
-    private func arrange(
-        proposal: ProposedViewSize,
-        subviews: Subviews
-    ) -> (size: CGSize, positions: [CGPoint]) {
-        let maxWidth = proposal.width ?? .infinity
-        var positions: [CGPoint] = []
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var rowHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x + size.width > maxWidth && x > 0 {
-                x = 0
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            positions.append(CGPoint(x: x, y: y))
-            rowHeight = max(rowHeight, size.height)
-            x += size.width + spacing
-        }
-
-        return (CGSize(width: maxWidth, height: y + rowHeight), positions)
-    }
 }
 
 #Preview {

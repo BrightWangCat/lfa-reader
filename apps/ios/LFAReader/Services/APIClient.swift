@@ -170,9 +170,20 @@ actor APIClient {
         return response
     }
 
-    /// Register a new user account.
-    func register(username: String, email: String, password: String) async throws -> UserResponse {
-        let body = RegisterRequest(email: email, username: username, password: password)
+    /// Register a new user account. When applyDoctor is true the account is
+    /// still created as a regular user and waits for admin approval.
+    func register(
+        username: String,
+        email: String,
+        password: String,
+        applyDoctor: Bool = false
+    ) async throws -> UserResponse {
+        let body = RegisterRequest(
+            email: email,
+            username: username,
+            password: password,
+            applyDoctor: applyDoctor
+        )
         let bodyData = try JSONEncoder().encode(body)
 
         return try await request("POST", path: "/users/register", body: bodyData)
@@ -200,6 +211,18 @@ actor APIClient {
     /// Delete another user and all data owned by that user. Admin only.
     func deleteUser(userId: Int) async throws {
         try await rawDataRequest("DELETE", path: "/users/\(userId)")
+    }
+
+    /// Approve or reject a pending doctor application. Admin only.
+    func decideDoctorApplication(userId: Int, approve: Bool) async throws -> UserResponse {
+        let body = try JSONEncoder().encode(
+            ["decision": approve ? "approve" : "reject"]
+        )
+        return try await request(
+            "PUT",
+            path: "/users/\(userId)/doctor-application",
+            body: body
+        )
     }
 
     /// Clear stored token.
@@ -296,6 +319,19 @@ actor APIClient {
     /// Fetch global statistics across all users.
     func fetchGlobalStats(diseaseCategory: String? = nil) async throws -> GlobalStats {
         var path = "/stats/global"
+        if let diseaseCategory,
+           var components = URLComponents(string: "https://placeholder\(path)") {
+            components.queryItems = [
+                URLQueryItem(name: "disease_category", value: diseaseCategory)
+            ]
+            path = components.percentEncodedQuery.map { "\(path)?\($0)" } ?? path
+        }
+        return try await request("GET", path: path)
+    }
+
+    /// Fetch the aggregate-only map data. Open to every signed-in role.
+    func fetchMapStats(diseaseCategory: String? = nil) async throws -> MapStats {
+        var path = "/stats/map"
         if let diseaseCategory,
            var components = URLComponents(string: "https://placeholder\(path)") {
             components.queryItems = [
@@ -483,6 +519,12 @@ private struct RegisterRequest: Encodable {
     let email: String
     let username: String
     let password: String
+    let applyDoctor: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case email, username, password
+        case applyDoctor = "apply_doctor"
+    }
 }
 
 private struct SetRoleRequest: Encodable {

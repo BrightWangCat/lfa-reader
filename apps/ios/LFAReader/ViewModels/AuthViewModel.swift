@@ -51,15 +51,25 @@ class AuthViewModel {
         }
     }
 
-    /// Register a new account.
+    /// Register a new account, optionally applying for the doctor role.
     @MainActor
-    func register(username: String, email: String, password: String) async {
+    func register(
+        username: String,
+        email: String,
+        password: String,
+        applyDoctor: Bool = false
+    ) async {
         errorMessage = nil
         isLoading = true
         defer { isLoading = false }
 
         do {
-            _ = try await api.register(username: username, email: email, password: password)
+            _ = try await api.register(
+                username: username,
+                email: email,
+                password: password,
+                applyDoctor: applyDoctor
+            )
             // Auto-login after successful registration
             _ = try await api.login(username: username, password: password)
             currentUser = try await api.fetchCurrentUser()

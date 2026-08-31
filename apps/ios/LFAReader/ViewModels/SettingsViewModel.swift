@@ -66,6 +66,35 @@ class SettingsViewModel {
         }
     }
 
+    @MainActor
+    func decideApplication(
+        for user: UserResponse,
+        approve: Bool,
+        currentUserId: Int
+    ) async {
+        guard user.doctorApplicationStatus == "pending",
+              !operatingUserIds.contains(user.id) else {
+            return
+        }
+
+        userListRevision &+= 1
+        operatingUserIds.insert(user.id)
+        actionError = nil
+        defer { operatingUserIds.remove(user.id) }
+
+        do {
+            let updated = try await api.decideDoctorApplication(
+                userId: user.id,
+                approve: approve
+            )
+            if let index = users.firstIndex(where: { $0.id == updated.id }) {
+                users[index] = updated
+            }
+        } catch {
+            actionError = "Failed to decide application for \(user.username): \(error.localizedDescription)"
+        }
+    }
+
     func requestDelete(_ user: UserResponse, currentUserId: Int) {
         guard user.id != currentUserId,
               !operatingUserIds.contains(user.id) else {

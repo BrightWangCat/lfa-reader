@@ -445,3 +445,98 @@ struct ZipCodeDetailView: View {
         .padding(.vertical, 4)
     }
 }
+
+// MARK: - Community map page
+
+/// Full-page community map backed by the aggregate-only /stats/map endpoint,
+/// which is open to every signed-in role. Shown as the Map tab in the owner
+/// shell; the clinic shell keeps its map inside the statistics detail.
+struct CommunityMapPageView: View {
+    private static let allFilter = "__all__"
+
+    /// The under-development workflow is excluded, same as the web client's
+    /// diseaseAvailability gating.
+    private let activeWorkflows = DiseaseWorkflow.all.filter {
+        $0.id != "canine_urothelial_carcinoma"
+    }
+
+    @State private var filter = CommunityMapPageView.allFilter
+    @State private var mapStats: MapStats?
+    @State private var loadedFilter: String?
+    @State private var errorMessage: String?
+
+    private let api = APIClient.shared
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Positive cases around Columbus, OH, aggregated by ZIP code from anonymized results. No individual records are shown.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    Picker("Workflow", selection: $filter) {
+                        Text("All").tag(CommunityMapPageView.allFilter)
+                        ForEach(activeWorkflows) { workflow in
+                            Text(workflow.label).tag(workflow.label)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    if let errorMessage {
+                        ContentUnavailableView {
+                            Label("Unable to Load Map", systemImage: "exclamationmark.triangle")
+                        } description: {
+                            Text(errorMessage)
+                        } actions: {
+                            Button("Retry") {
+                                Task { await loadStats() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    } else if let mapStats, loadedFilter == filter {
+                        Text("\(mapStats.totalPositive) positive result\(mapStats.totalPositive == 1 ? "" : "s") in total for this selection.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        ZipCodeMapView(zipData: zipData(from: mapStats))
+                            .frame(height: 420)
+                    } else {
+                        ProgressView("Loading map...")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 60)
+                    }
+                }
+                .padding()
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("Community Map")
+            .task(id: filter) {
+                await loadStats()
+            }
+            .refreshable {
+                await loadStats()
+            }
+        }
+    }
+
+    private func zipData(from stats: MapStats) -> [String: [String: Int]] {
+        stats.positiveByAreaCode.mapValues { ["Positive": $0] }
+    }
+
+    @MainActor
+    private func loadStats() async {
+        errorMessage = nil
+        do {
+            let requested = filter
+            let stats = try await api.fetchMapStats(
+                diseaseCategory: requested == CommunityMapPageView.allFilter ? nil : requested
+            )
+            guard requested == filter else { return }
+            mapStats = stats
+            loadedFilter = requested
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}

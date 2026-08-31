@@ -12,6 +12,12 @@ struct SettingsView: View {
                         LabeledContent("Username", value: user.username)
                         LabeledContent("Email", value: user.email)
                         LabeledContent("Role", value: user.displayRole)
+
+                        if user.doctorApplicationStatus == "pending" {
+                            LabeledContent("Doctor Application", value: "Under review")
+                        } else if user.doctorApplicationStatus == "rejected" {
+                            LabeledContent("Doctor Application", value: "Declined")
+                        }
                     }
                 }
 
@@ -196,6 +202,46 @@ struct UserManagementView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            if user.doctorApplicationStatus == "pending" {
+                HStack(spacing: 10) {
+                    Label("Doctor application", systemImage: "stethoscope")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.blue)
+
+                    Spacer()
+
+                    Button("Approve") {
+                        Task {
+                            await viewModel.decideApplication(
+                                for: user,
+                                approve: true,
+                                currentUserId: currentUserId
+                            )
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(isOperating)
+
+                    Button("Reject", role: .destructive) {
+                        Task {
+                            await viewModel.decideApplication(
+                                for: user,
+                                approve: false,
+                                currentUserId: currentUserId
+                            )
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isOperating)
+                }
+            } else if user.doctorApplicationStatus == "rejected" {
+                Label("Doctor application declined", systemImage: "stethoscope")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Divider()
 

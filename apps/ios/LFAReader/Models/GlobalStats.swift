@@ -64,6 +64,18 @@ struct GlobalStats: Codable {
     ]
 }
 
+/// Response from GET /api/stats/map: aggregate positive counts per area code,
+/// the only statistics payload open to every signed-in role.
+struct MapStats: Codable {
+    let totalPositive: Int
+    let positiveByAreaCode: [String: Int]
+
+    enum CodingKeys: String, CodingKey {
+        case totalPositive = "total_positive"
+        case positiveByAreaCode = "positive_by_area_code"
+    }
+}
+
 struct WeeklyTrend: Codable, Identifiable {
     let weekStart: String
     let weekEnd: String

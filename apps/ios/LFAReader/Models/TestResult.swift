@@ -336,6 +336,96 @@ let breedOptionsBySpecies: [SpeciesKind: [String]] = [
     ],
 ]
 
+// MARK: - Plain-language results (owner shell)
+
+/// Owner-facing translation of a clinical result category. Copy mirrors the
+/// web module utils/resultDisplay.js: it never names a specific virus for the
+/// FIV/FeLV line positions, so interpretation stays with the vet.
+struct PlainResult {
+    enum Tone {
+        case good
+        case attention
+        case invalid
+        case pending
+        case neutral
+
+        var color: Color {
+            switch self {
+            case .good: .green
+            case .attention: .red
+            case .invalid, .neutral: .gray
+            case .pending: .orange
+            }
+        }
+    }
+
+    let tone: Tone
+    let title: String
+    let summary: String
+}
+
+private let plainTickBorneNames: [String: String] = [
+    "E. canis/E. ewingii Ab": "Ehrlichia, a tick-borne bacterium",
+    "Lyme disease Ab (B. burgdorferi)": "Lyme disease",
+    "A. phagocytophilum/A. platys Ab": "Anaplasma, a tick-borne bacterium",
+    "Heartworm Ag": "Heartworm",
+]
+
+private let plainVetAdvice =
+    "Please share this result with your veterinarian to confirm what it means for your pet."
+
+func plainResult(workflow: String?, result: String?) -> PlainResult {
+    guard let result, !result.isEmpty else {
+        return PlainResult(
+            tone: .pending,
+            title: "Waiting for a reading",
+            summary: "This photo has not been analyzed yet. Run the analysis to get a result."
+        )
+    }
+
+    if result == "Invalid" {
+        return PlainResult(
+            tone: .invalid,
+            title: "The test could not be read",
+            summary: "The photo or the test itself could not be read. Try retaking the photo in good light, or repeat the test with a new cassette."
+        )
+    }
+
+    if result == "Negative" {
+        let summary = workflow == "Tick Borne"
+            ? "This test did not detect signs of the tick-borne diseases or heartworm it screens for."
+            : "This test did not detect what it screens for. Follow any advisory shown above."
+        return PlainResult(tone: .good, title: "No signs detected", summary: summary)
+    }
+
+    if result.hasPrefix("Positive:") {
+        let names = result
+            .dropFirst("Positive:".count)
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { plainTickBorneNames[$0] ?? $0 }
+        return PlainResult(
+            tone: .attention,
+            title: "The test shows a positive signal",
+            summary: "This test detected a signal for: \(names.joined(separator: "; ")). \(plainVetAdvice)"
+        )
+    }
+
+    if result.hasPrefix("Positive") {
+        let lines = result
+            .replacingOccurrences(of: "Positive", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        let plural = lines.contains("+") ? "s" : ""
+        return PlainResult(
+            tone: .attention,
+            title: "The test shows a positive signal",
+            summary: "The test shows a positive line\(plural) at position \(lines). \(plainVetAdvice)"
+        )
+    }
+
+    return PlainResult(tone: .neutral, title: result, summary: plainVetAdvice)
+}
+
 func resolveWarning(_ key: String) -> String {
     switch key {
     case "young_cat_false_negative":

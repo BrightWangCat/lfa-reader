@@ -1,8 +1,13 @@
 import SwiftUI
 
 struct ResultsView: View {
+    @Environment(AuthViewModel.self) private var authViewModel
     @State private var viewModel = ResultsViewModel()
     @State private var navigationPath: [Int] = []
+
+    private var ownerView: Bool {
+        !(authViewModel.currentUser?.isClinical ?? false)
+    }
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -22,7 +27,7 @@ struct ResultsView: View {
                     }
                 }
             }
-            .navigationTitle("Results")
+            .navigationTitle(ownerView ? "My Results" : "Submissions")
             .navigationDestination(for: Int.self) { imageId in
                 ImageDetailView(imageId: imageId)
             }
@@ -131,7 +136,7 @@ struct ResultsView: View {
 
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(image.finalResult ?? "Pending Review")
+                    Text(resultTitle(for: image))
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(resultForeground(for: image.finalResult))
 
@@ -160,7 +165,7 @@ struct ResultsView: View {
                     }
                 }
 
-                if let username = image.username {
+                if !ownerView, let username = image.username {
                     Label("Uploaded by \(username)", systemImage: "person")
                         .lineLimit(1)
                 }
@@ -200,6 +205,18 @@ struct ResultsView: View {
         return resultColor(for: result)
     }
 
+    /// Owners read the plain-language title; clinical roles read the raw
+    /// category string.
+    private func resultTitle(for image: TestImageSummary) -> String {
+        guard ownerView else {
+            return image.finalResult ?? "Pending Review"
+        }
+        return plainResult(
+            workflow: image.diseaseCategory,
+            result: image.finalResult
+        ).title
+    }
+
     private func statusLabel(_ status: String) -> String {
         switch status {
         case "running":
@@ -229,4 +246,5 @@ struct ResultsView: View {
 
 #Preview {
     ResultsView()
+        .environment(AuthViewModel())
 }

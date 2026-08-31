@@ -7,6 +7,7 @@ struct RegisterView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var confirmPassword = ""
+    @State private var applyDoctor = false
 
     private var trimmedUsername: String {
         username.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -104,6 +105,22 @@ struct RegisterView: View {
                                 .font(.caption)
                                 .foregroundStyle(.red)
                         }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Toggle(isOn: $applyDoctor) {
+                                Text("I am a veterinarian. Apply for a doctor account.")
+                                    .font(.subheadline)
+                            }
+
+                            if applyDoctor {
+                                Text("An administrator reviews doctor applications. Until approval, the account works as a regular account.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding()
+                        .background(.fill.tertiary)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                     .padding(.horizontal)
 
@@ -122,7 +139,8 @@ struct RegisterView: View {
                             await authViewModel.register(
                                 username: trimmedUsername,
                                 email: trimmedEmail,
-                                password: password
+                                password: password,
+                                applyDoctor: applyDoctor
                             )
                             if authViewModel.isAuthenticated {
                                 dismiss()

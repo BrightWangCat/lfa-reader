@@ -17,12 +17,19 @@ private enum ImageVariant: String, CaseIterable, Identifiable {
 }
 
 struct ImageDetailView: View {
+    @Environment(AuthViewModel.self) private var authViewModel
     @State private var viewModel: ImageDetailViewModel
     @State private var zoom: CGFloat = 1.0
     @State private var lastZoom: CGFloat = 1.0
     @State private var imageOffset: CGSize = .zero
     @State private var lastImageOffset: CGSize = .zero
     @State private var imageVariant: ImageVariant = .processed
+
+    /// Pet owners see the plain-language summary and no per-analyte detail;
+    /// clinical roles see the full clinical view. Correction stays for both.
+    private var ownerView: Bool {
+        !(authViewModel.currentUser?.isClinical ?? false)
+    }
 
     init(imageId: Int, initialImage: TestImage? = nil) {
         _viewModel = State(initialValue: ImageDetailViewModel(imageId: imageId, initialImage: initialImage))
@@ -183,38 +190,42 @@ struct ImageDetailView: View {
 
     private func resultSection(_ image: TestImage) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Classification")
-                        .font(.headline)
+            if ownerView {
+                plainResultPanel(image)
+            } else {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Classification")
+                            .font(.headline)
 
-                    Text(image.finalResult ?? "Pending")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(resultColor(for: image.finalResult ?? "Pending"))
-                }
+                        Text(image.finalResult ?? "Pending")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(resultColor(for: image.finalResult ?? "Pending"))
+                    }
 
-                Spacer()
+                    Spacer()
 
-                VStack(alignment: .trailing, spacing: 8) {
-                    statusBadge(image.readingStatus)
+                    VStack(alignment: .trailing, spacing: 8) {
+                        statusBadge(image.readingStatus)
 
-                    if image.manualCorrection != nil {
-                        capsuleLabel(text: "Corrected", tint: .orange)
+                        if image.manualCorrection != nil {
+                            capsuleLabel(text: "Corrected", tint: .orange)
+                        }
                     }
                 }
-            }
 
-            if let cvResult = image.cvResult {
-                LabeledContent("CV Result", value: cvResult)
-                    .font(.subheadline)
-            }
+                if let cvResult = image.cvResult {
+                    LabeledContent("CV Result", value: cvResult)
+                        .font(.subheadline)
+                }
 
-            if let confidence = image.cvConfidence {
-                LabeledContent("Confidence", value: confidence)
-                    .font(.subheadline)
-            }
+                if let confidence = image.cvConfidence {
+                    LabeledContent("Confidence", value: confidence)
+                        .font(.subheadline)
+                }
 
-            tickBornePanel(image)
+                tickBornePanel(image)
+            }
 
             if image.readingStatus == "running" {
                 HStack(spacing: 12) {
@@ -345,6 +356,37 @@ struct ImageDetailView: View {
                 ? "Not selected"
                 : viewModel.selectedCorrection
         )
+    }
+
+    /// Owner-facing summary: plain language instead of the clinical tags and
+    /// the per-analyte panel. The raw category still shows as a footnote
+    /// because the correction picker uses the same values.
+    private func plainResultPanel(_ image: TestImage) -> some View {
+        let workflow = image.diseaseCategory ?? image.patientInfo?.diseaseCategory
+        let plain = plainResult(workflow: workflow, result: image.finalResult)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top) {
+                Text(plain.title)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(plain.tone.color)
+
+                Spacer()
+
+                statusBadge(image.readingStatus)
+            }
+
+            Text(plain.summary)
+                .font(.subheadline)
+
+            if let final = image.finalResult {
+                Text("Result category: \(final)\(image.manualCorrection != nil ? " (reviewed)" : "")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(plain.tone.color.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
     }
 
     @ViewBuilder
