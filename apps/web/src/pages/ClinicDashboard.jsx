@@ -196,7 +196,8 @@ function DashboardTrend({ weeklyTrends }) {
           {lastTemp && (
             <text
               x={right}
-              y={tempY(lastTemp.avg_temperature_f) + 4}
+              y={tempY(lastTemp.avg_temperature_f) - 6}
+              textAnchor="end"
               fontSize="10.5"
               fill="var(--ink-secondary)"
             >
@@ -352,12 +353,19 @@ export default function ClinicDashboard() {
     },
     {
       title: "Result",
-      width: 170,
+      width: 250,
       render: (_, record) => {
         const final = finalResult(record);
         if (!final) return <Tag color="gold">Pending</Tag>;
+        // Tick Borne summaries can list several analytes; wrap inside the
+        // cell instead of overflowing into the neighboring columns.
         return (
-          <Tag color={isPositiveFinal(final) ? "red" : "green"}>{final}</Tag>
+          <Tag
+            color={isPositiveFinal(final) ? "red" : "green"}
+            style={{ whiteSpace: "normal", margin: 0 }}
+          >
+            {final}
+          </Tag>
         );
       },
     },

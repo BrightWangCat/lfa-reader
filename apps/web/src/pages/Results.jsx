@@ -490,7 +490,9 @@ export default function Results() {
                 key: "cv",
                 label: "CV Reading",
                 children: image.cv_result ? (
-                  <Tag color="green">{image.cv_result}</Tag>
+                  <Tag color="green" style={{ whiteSpace: "normal" }}>
+                    {image.cv_result}
+                  </Tag>
                 ) : (
                   <Tag color="gold">Pending</Tag>
                 ),
@@ -500,7 +502,11 @@ export default function Results() {
                     {
                       key: "manual",
                       label: "Corrected",
-                      children: <Tag color="green">{image.manual_correction}</Tag>,
+                      children: (
+                        <Tag color="green" style={{ whiteSpace: "normal" }}>
+                          {image.manual_correction}
+                        </Tag>
+                      ),
                     },
                   ]
                 : []),
