@@ -452,15 +452,15 @@ struct ZipCodeDetailView: View {
 /// which is open to every signed-in role. Shown as the Map tab in the owner
 /// shell; the clinic shell keeps its map inside the statistics detail.
 struct CommunityMapPageView: View {
-    private static let allFilter = "__all__"
-
     /// The under-development workflow is excluded, same as the web client's
-    /// diseaseAvailability gating.
-    private let activeWorkflows = DiseaseWorkflow.all.filter {
+    /// diseaseAvailability gating. The map is always viewed per workflow;
+    /// there is no combined view.
+    private static let activeWorkflows = DiseaseWorkflow.all.filter {
         $0.id != "canine_urothelial_carcinoma"
     }
 
-    @State private var filter = CommunityMapPageView.allFilter
+    @State private var filter =
+        CommunityMapPageView.activeWorkflows.first?.label ?? "FIV/FeLV"
     @State private var mapStats: MapStats?
     @State private var loadedFilter: String?
     @State private var errorMessage: String?
@@ -476,8 +476,7 @@ struct CommunityMapPageView: View {
                         .foregroundStyle(.secondary)
 
                     Picker("Workflow", selection: $filter) {
-                        Text("All").tag(CommunityMapPageView.allFilter)
-                        ForEach(activeWorkflows) { workflow in
+                        ForEach(Self.activeWorkflows) { workflow in
                             Text(workflow.label).tag(workflow.label)
                         }
                     }
@@ -529,9 +528,7 @@ struct CommunityMapPageView: View {
         errorMessage = nil
         do {
             let requested = filter
-            let stats = try await api.fetchMapStats(
-                diseaseCategory: requested == CommunityMapPageView.allFilter ? nil : requested
-            )
+            let stats = try await api.fetchMapStats(diseaseCategory: requested)
             guard requested == filter else { return }
             mapStats = stats
             loadedFilter = requested

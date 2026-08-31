@@ -12,22 +12,18 @@ const { Title, Text } = Typography;
 const MAP_CATEGORY = "Positive";
 const MAP_CATEGORY_COLOR = { [MAP_CATEGORY]: "#BF3E2B" };
 
-const ALL_VALUE = "__all__";
+// The map is always viewed per disease workflow; there is no combined view.
+const ACTIVE_DISEASES = diseases.filter((d) => !isDiseaseUnderDevelopment(d.id));
 
 export default function CommunityMap() {
-  const [filter, setFilter] = useState(ALL_VALUE);
+  const [filter, setFilter] = useState(ACTIVE_DISEASES[0]?.label);
   // The response is stored together with the filter it answers, so switching
   // filters derives the loading state instead of setting it inside the effect.
   const [result, setResult] = useState(null);
 
-  const activeDiseases = useMemo(
-    () => diseases.filter((d) => !isDiseaseUnderDevelopment(d.id)),
-    []
-  );
-
   useEffect(() => {
     let cancelled = false;
-    getMapStats(filter === ALL_VALUE ? undefined : filter)
+    getMapStats(filter)
       .then((res) => {
         if (!cancelled) setResult({ filter, data: res.data });
       })
@@ -78,10 +74,7 @@ export default function CommunityMap() {
         optionType="button"
         buttonStyle="solid"
         style={{ marginBottom: 16 }}
-        options={[
-          { value: ALL_VALUE, label: "All workflows" },
-          ...activeDiseases.map((d) => ({ value: d.label, label: d.label })),
-        ]}
+        options={ACTIVE_DISEASES.map((d) => ({ value: d.label, label: d.label }))}
       />
 
       {error && (
