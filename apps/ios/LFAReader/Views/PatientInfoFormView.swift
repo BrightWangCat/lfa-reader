@@ -14,7 +14,6 @@ struct PatientInfoFormView: View {
     @Binding var preventiveTreatment: Bool?
 
     @State private var showSecondaryFields = false
-    @FocusState private var areaCodeFocused: Bool
 
     var body: some View {
         Section(ownerExperience ? "About Your Pet" : "Patient Information") {
@@ -60,19 +59,12 @@ struct PatientInfoFormView: View {
                         ownerExperience ? "ZIP code, for the community map" : "Area Code",
                         text: $areaCode
                     )
-                    .keyboardType(.numberPad)
+                    // The number pad has no Return key and the keyboard toolbar
+                    // is not shown on this form, so this keyboard with a Return
+                    // key labeled done is used, which closes the keyboard.
+                    .keyboardType(.numbersAndPunctuation)
+                    .submitLabel(.done)
                     .textContentType(.postalCode)
-                    .focused($areaCodeFocused)
-                    // The number pad has no Return key, so a Done button on
-                    // the keyboard toolbar is the only way to dismiss it.
-                    .toolbar {
-                        ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("Done") {
-                                areaCodeFocused = false
-                            }
-                        }
-                    }
 
                     if ownerExperience {
                         DisclosureGroup(
