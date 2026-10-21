@@ -187,6 +187,7 @@ private struct WorkflowStatisticsDetailView: View {
         if !stats.weeklyTrends.isEmpty {
             let positiveRows = weeklyPositiveRows(stats)
             let temperatureRows = weeklyTemperatureRows(stats)
+            let axisLabels = weekAxisLabels(stats)
 
             VStack(alignment: .leading, spacing: 10) {
                 Text("Weekly Positive Results and Columbus Temperature")
@@ -208,7 +209,7 @@ private struct WorkflowStatisticsDetailView: View {
                     range: GlobalStats.positiveCategories.map { categoryColor($0) }
                 )
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 6))
+                    weekAxisMarks(axisLabels)
                 }
                 .chartYAxisLabel("Positive tests")
                 .frame(height: 220)
@@ -224,7 +225,7 @@ private struct WorkflowStatisticsDetailView: View {
                         .interpolationMethod(.catmullRom)
                     }
                     .chartXAxis {
-                        AxisMarks(values: .automatic(desiredCount: 6))
+                        weekAxisMarks(axisLabels)
                     }
                     .chartYAxisLabel("Avg Temp °F")
                     .frame(height: 120)
@@ -242,30 +243,26 @@ private struct WorkflowStatisticsDetailView: View {
     }
 
     /// Result totals as directly labeled horizontal bars. Shares compare by
-    /// length on a common baseline, replacing the former donut chart.
+    /// length on a common baseline, replacing the former donut chart. Plain
+    /// rows are used instead of a chart, because the chart's category axis
+    /// drew grid lines through the labels on newer iOS versions.
     private func distributionChart(_ stats: GlobalStats) -> some View {
         let rows = GlobalStats.displayCategories.map { category in
             (category: category, count: stats.categoryTotals[category] ?? 0)
         }
+        let maxCount = rows.map(\.count).max() ?? 0
         return VStack(alignment: .leading, spacing: 8) {
             Text("Result Distribution")
                 .font(.headline)
 
-            Chart(rows, id: \.category) { row in
-                BarMark(
-                    x: .value("Count", row.count),
-                    y: .value("Category", row.category)
+            ForEach(rows, id: \.category) { row in
+                LabeledBarRow(
+                    label: row.category,
+                    valueText: "\(row.count)",
+                    fraction: maxCount > 0 ? Double(row.count) / Double(maxCount) : 0,
+                    color: categoryColor(row.category)
                 )
-                .foregroundStyle(categoryColor(row.category))
-                .cornerRadius(3)
-                .annotation(position: .trailing) {
-                    Text("\(row.count)")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
             }
-            .chartXAxis(.hidden)
-            .frame(height: CGFloat(rows.count) * 34 + 12)
         }
         .padding()
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
@@ -298,6 +295,7 @@ private struct WorkflowStatisticsDetailView: View {
         let restCount = sorted.dropFirst(8).reduce(0) { $0 + $1.value }
         let rows = shown.map { (key: $0.key, value: $0.value) }
             + (restCount > 0 ? [(key: "Other", value: restCount)] : [])
+        let maxValue = rows.map(\.value).max() ?? 0
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -309,22 +307,15 @@ private struct WorkflowStatisticsDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Chart(rows, id: \.key) { row in
-                BarMark(
-                    x: .value("Count", row.value),
-                    y: .value("Value", row.key)
+            ForEach(rows, id: \.key) { row in
+                let pct = Double(row.value) / Double(max(total, 1)) * 100
+                LabeledBarRow(
+                    label: row.key,
+                    valueText: "\(row.value) · \(String(format: "%.0f%%", pct))",
+                    fraction: maxValue > 0 ? Double(row.value) / Double(maxValue) : 0,
+                    color: categoryColor(category)
                 )
-                .foregroundStyle(categoryColor(category))
-                .cornerRadius(3)
-                .annotation(position: .trailing) {
-                    let pct = Double(row.value) / Double(max(total, 1)) * 100
-                    Text("\(row.value) · \(String(format: "%.0f%%", pct))")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
             }
-            .chartXAxis(.hidden)
-            .frame(height: CGFloat(rows.count) * 30 + 12)
         }
         .padding()
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
@@ -383,6 +374,28 @@ private struct WorkflowStatisticsDetailView: View {
         }
     }
 
+    /// Every third week label. Labeling all twelve weeks made the axis
+    /// truncate each label to a few letters.
+    private func weekAxisLabels(_ stats: GlobalStats) -> [String] {
+        stats.weeklyTrends.enumerated()
+            .filter { $0.offset % 3 == 0 }
+            .map { $0.element.label }
+    }
+
+    /// Week axis marks whose labels keep their full width. By default the
+    /// chart limits each label to the width of one week and truncates it.
+    private func weekAxisMarks(_ labels: [String]) -> some AxisContent {
+        AxisMarks(values: labels) { value in
+            AxisGridLine()
+            AxisTick()
+            AxisValueLabel {
+                if let label = value.as(String.self) {
+                    Text(label).fixedSize()
+                }
+            }
+        }
+    }
+
     private func weeklyTemperatureRows(_ stats: GlobalStats) -> [WeeklyTemperatureRow] {
         stats.weeklyTrends.compactMap { trend in
             guard let temperature = trend.avgTemperatureF else { return nil }
@@ -406,6 +419,39 @@ private struct WorkflowStatisticsDetailView: View {
             return Color(red: 0.486, green: 0.176, blue: 0.071)
         default:
             return .gray
+        }
+    }
+}
+
+/// One labeled bar: the label and value on one line, and below them a bar
+/// whose length is the row's share of the largest row, on a light track so
+/// that a zero row stays visible.
+private struct LabeledBarRow: View {
+    let label: String
+    let valueText: String
+    let fraction: Double
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .font(.caption)
+                Spacer()
+                Text(valueText)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color(.systemGray5))
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(color)
+                        .frame(width: proxy.size.width * min(max(fraction, 0), 1))
+                }
+            }
+            .frame(height: 10)
         }
     }
 }
