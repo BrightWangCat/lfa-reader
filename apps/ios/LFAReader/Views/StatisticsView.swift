@@ -187,6 +187,7 @@ private struct WorkflowStatisticsDetailView: View {
         if !stats.weeklyTrends.isEmpty {
             let positiveRows = weeklyPositiveRows(stats)
             let temperatureRows = weeklyTemperatureRows(stats)
+            let allWeeks = stats.weeklyTrends.map(\.label)
             let axisLabels = weekAxisLabels(stats)
 
             VStack(alignment: .leading, spacing: 10) {
@@ -208,11 +209,16 @@ private struct WorkflowStatisticsDetailView: View {
                     domain: GlobalStats.positiveCategories,
                     range: GlobalStats.positiveCategories.map { categoryColor($0) }
                 )
+                .chartLegend(position: .top, alignment: .leading)
                 .chartXAxis {
-                    weekAxisMarks(axisLabels)
+                    weekAxisMarks(allWeeks)
                 }
                 .chartYAxisLabel("Positive tests")
+                .chartOverlay { proxy in
+                    weekLabelOverlay(proxy, labels: axisLabels)
+                }
                 .frame(height: 220)
+                .padding(.bottom, weekLabelSpace)
 
                 if !temperatureRows.isEmpty {
                     Chart(temperatureRows) { row in
@@ -225,10 +231,14 @@ private struct WorkflowStatisticsDetailView: View {
                         .interpolationMethod(.catmullRom)
                     }
                     .chartXAxis {
-                        weekAxisMarks(axisLabels)
+                        weekAxisMarks(allWeeks)
                     }
                     .chartYAxisLabel("Avg Temp °F")
+                    .chartOverlay { proxy in
+                        weekLabelOverlay(proxy, labels: axisLabels)
+                    }
                     .frame(height: 120)
+                    .padding(.bottom, weekLabelSpace)
                 }
 
                 if let temperatureError = stats.temperatureError {
@@ -382,15 +392,33 @@ private struct WorkflowStatisticsDetailView: View {
             .map { $0.element.label }
     }
 
-    /// Week axis marks whose labels keep their full width. By default the
-    /// chart limits each label to the width of one week and truncates it.
-    private func weekAxisMarks(_ labels: [String]) -> some AxisContent {
-        AxisMarks(values: labels) { value in
+    /// Grid lines and ticks for every week, without axis labels. On iOS 27
+    /// the chart clips each axis label to the width of one week, so the week
+    /// labels are drawn by weekLabelOverlay instead.
+    private func weekAxisMarks(_ weeks: [String]) -> some AxisContent {
+        AxisMarks(values: weeks) { _ in
             AxisGridLine()
             AxisTick()
-            AxisValueLabel {
-                if let label = value.as(String.self) {
-                    Text(label).fixedSize()
+        }
+    }
+
+    /// Height reserved under each weekly chart for the overlay labels.
+    private var weekLabelSpace: CGFloat { 18 }
+
+    /// Draws the given week labels under the plot area, each centered on the
+    /// x position that the chart reports for its week.
+    private func weekLabelOverlay(_ proxy: ChartProxy, labels: [String]) -> some View {
+        GeometryReader { geometry in
+            if let plotFrame = proxy.plotFrame {
+                let frame = geometry[plotFrame]
+                ForEach(labels, id: \.self) { label in
+                    if let x = proxy.position(forX: label) {
+                        Text(label)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .fixedSize()
+                            .position(x: frame.minX + x, y: frame.maxY + weekLabelSpace / 2 + 4)
+                    }
                 }
             }
         }
